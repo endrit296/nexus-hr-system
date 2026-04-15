@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+// Dev: http://localhost:8080 (API Gateway directly)
+// Docker: http://localhost (Nginx load balancer on port 80)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+
 const client = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: BASE_URL,
 });
 
 // Attach access token to every request
@@ -36,7 +40,7 @@ client.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post('http://localhost:8080/api/auth/refresh', {
+        const { data } = await axios.post(`${BASE_URL}/api/auth/refresh`, {
           refreshToken,
         });
 

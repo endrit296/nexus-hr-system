@@ -1,0 +1,86 @@
+services:
+
+  # ── Load Balancer ────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api-gateway
+      - frontend
+    restart: unless-stopped
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    expose:
+      - '80'
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+  # ── API Gateway ──────────────────────────────────────────────────────────────
+  api-gateway:
+    build: ./api-gateway
+    expose:
+      - '8080'
+    environment:
+      - NODE_ENV=production
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - EMPLOYEE_SERVICE_URL=http://employee-service:3002
+    depends_on:
+      - auth-service
+      - employee-service
+    restart: unless-stopped
+
+  # ── Auth Service (NoSQL — MongoDB) ───────────────────────────────────────────
+  auth-service:
+    build: ./auth-service
+    expose:
+      - '3001'
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/nexus_auth
+      - JWT_SECRET=nexus_jwt_secret_change_in_production
+      - PORT=3001
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  # ── Employee Service (SQL — PostgreSQL) ──────────────────────────────────────
+  employee-service:
+    build: ./employee-service
+    expose:
+      - '3002'
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=nexus_hr
+      - DB_USER=postgres
+      - DB_PASS=password
+      - PORT=3002
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # ── Databases ────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=nexus_hr
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  postgres_data:

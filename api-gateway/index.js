@@ -5,36 +5,39 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 const PORT = 8080;
 
-// Allow requests from the React frontend
-app.use(cors({ origin: 'http://localhost:5173' }));
+// Allow requests from the React frontend (dev) and Nginx load balancer (Docker)
+const allowedOrigins = ['http://localhost:5173', 'http://localhost'];
+app.use(cors({ origin: allowedOrigins }));
 
-// Proxy /api/auth/* → auth-service on port 3001
-// Note: Express strips the matched prefix before passing to middleware,
-// so req.url is the remainder (e.g. /register). We restore the /auth prefix.
+// Service hostnames: use env vars (Docker) with localhost fallbacks (dev)
+const AUTH_SERVICE     = process.env.AUTH_SERVICE_URL     || 'http://localhost:3001';
+const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE_URL || 'http://localhost:3002';
+
+// Proxy /api/auth/* → auth-service
 app.use(
   '/api/auth',
   createProxyMiddleware({
-    target: 'http://localhost:3001',
+    target: AUTH_SERVICE,
     changeOrigin: true,
     pathRewrite: (path) => '/auth' + (path === '/' ? '' : path),
   })
 );
 
-// Proxy /api/employees/* → employee-service on port 3002
+// Proxy /api/employees/* → employee-service
 app.use(
   '/api/employees',
   createProxyMiddleware({
-    target: 'http://localhost:3002',
+    target: EMPLOYEE_SERVICE,
     changeOrigin: true,
     pathRewrite: (path) => '/employees' + (path === '/' ? '' : path),
   })
 );
 
-// Proxy /api/departments/* → employee-service on port 3002
+// Proxy /api/departments/* → employee-service
 app.use(
   '/api/departments',
   createProxyMiddleware({
-    target: 'http://localhost:3002',
+    target: EMPLOYEE_SERVICE,
     changeOrigin: true,
     pathRewrite: (path) => '/departments' + (path === '/' ? '' : path),
   })
