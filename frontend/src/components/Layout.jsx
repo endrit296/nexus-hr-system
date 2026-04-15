@@ -11,7 +11,6 @@ const pageTitles = {
   departments: 'Departments',
 };
 
-// Kthejmë { user, onLogout } siç i ke pasur
 function Layout({ user, onLogout }) {
   const [activePage, setActivePage] = useState('dashboard');
 
@@ -31,8 +30,7 @@ function Layout({ user, onLogout }) {
         <header className="topbar">
           <h2 className="topbar-title">{pageTitles[activePage]}</h2>
           <div className="topbar-right">
-            {/* Përdorim user.username saktësisht siç e ke në App.jsx */}
-            <span className="topbar-user">👤 {user?.username || 'User'}</span>
+            <span className="topbar-user">👤 {user.username}</span>
             <button onClick={onLogout} className="topbar-logout">Sign out</button>
           </div>
         </header>

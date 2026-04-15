@@ -32,7 +32,7 @@ function EmployeeModal({ employee, departments, employees, onClose, onSave, load
     e.preventDefault();
 
     // ── VALIDIMET E FAZËS II ─────────────────────────────────
-    
+
     // 1. Kontrolli për fushat e detyrueshme
     if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
       setError('Emri, mbiemri dhe email-i janë të detyrueshëm!');
@@ -58,13 +58,13 @@ function EmployeeModal({ employee, departments, employees, onClose, onSave, load
       firstName:    form.firstName.trim(),
       lastName:     form.lastName.trim(),
       email:        form.email.trim(),
-      phone:        form.phone ? form.phone.trim() : null,
-      position:     form.position ? form.position.trim() : null,
+      phone:        form.phone        || null,
+      position:     form.position     || null,
       status:       form.status,
-      hireDate:     form.hireDate || null,
-      salary:       form.salary ? Number(form.salary) : null,
+      hireDate:     form.hireDate     || null,
+      salary:       form.salary       ? Number(form.salary) : null,
       departmentId: form.departmentId ? Number(form.departmentId) : null,
-      managerId:    form.managerId ? Number(form.managerId) : null,
+      managerId:    form.managerId    ? Number(form.managerId)    : null,
     };
     onSave(payload);
   };
@@ -138,7 +138,6 @@ function EmployeeModal({ employee, departments, employees, onClose, onSave, load
                 <label className="form-label">Salary</label>
                 <input className="form-input" type="number" min="0" step="0.01" value={form.salary} onChange={set('salary')} placeholder="50000" />
               </div>
-              {/* Mesazhi i gabimit i stiluar */}
               {(error || serverError) && <p className="form-error">⚠️ {error || serverError}</p>}
             </div>
           </div>

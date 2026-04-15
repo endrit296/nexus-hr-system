@@ -1,170 +1,159 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import '../index.css';
+import { useEffect, useState } from 'react';
+import client from '../api/client';
+import EmployeeModal from '../modals/EmployeeModal';
+import ConfirmModal from '../modals/ConfirmModal';
 
-const EmployeesPage = () => {
-    const [employees, setEmployees] = useState([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [selectedEmployee, setSelectedEmployee] = useState(null);
-    const [toast, setToast] = useState({ show: false, message: '' });
+function EmployeesPage() {
+  const [employees, setEmployees]     = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [search, setSearch]           = useState('');
 
-    const [formData, setFormData] = useState({
-        name: '',
-        position: '',
-        email: '',
-        salary: ''
-    });
+  const [modalEmployee, setModalEmployee] = useState(undefined); // undefined=closed, null=add, obj=edit
+  const [saving, setSaving]               = useState(false);
+  const [modalError, setModalError]       = useState('');
 
-    // Shfaqja e Toast-it
-    const showToast = (msg) => {
-        setToast({ show: true, message: msg });
-        setTimeout(() => setToast({ show: false, message: '' }), 3000);
-    };
+  const [confirmId, setConfirmId] = useState(null);
+  const [deleting, setDeleting]   = useState(false);
 
-    const fetchEmployees = async () => {
-        try {
-            const response = await axios.get('http://localhost:5000/api/employees');
-            setEmployees(response.data);
-        } catch (error) {
-            console.error("Gabim gjatë marrjes së të dhënave:", error);
-        }
-    };
+  const fetchAll = () =>
+    Promise.all([client.get('/api/employees'), client.get('/api/departments')])
+      .then(([empRes, deptRes]) => {
+        setEmployees(empRes.data.employees);
+        setDepartments(deptRes.data.departments);
+      })
+      .catch(() => setError('Failed to load data'))
+      .finally(() => setLoading(false));
 
-    useEffect(() => {
-        fetchEmployees();
-    }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-    const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        // VALIDIMET
-        if (!formData.name || !formData.position || !formData.email || !formData.salary) {
-            alert("Ju lutem plotësoni të gjitha fushat!");
-            return;
-        }
-
-        if (formData.salary <= 0) {
-            alert("Paga duhet të jetë një numër pozitiv!");
-            return;
-        }
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.email)) {
-            alert("Ju lutem shkruani një email valide!");
-            return;
-        }
-
-        try {
-            if (isEditMode) {
-                await axios.put(`http://localhost:5000/api/employees/${selectedEmployee._id}`, formData);
-                showToast("Punëtori u përditësua me sukses! ✅");
-            } else {
-                await axios.post('http://localhost:5000/api/employees', formData);
-                showToast("Punëtori u shtua me sukses! ✅");
-            }
-            setIsModalOpen(false);
-            resetForm();
-            fetchEmployees();
-        } catch (error) {
-            alert("Ndodhi një gabim: " + error.response?.data?.message);
-        }
-    };
-
-    const handleDelete = async (id) => {
-        if (window.confirm("A jeni të sigurt që dëshironi ta fshini këtë punëtor?")) {
-            try {
-                await axios.delete(`http://localhost:5000/api/employees/${id}`);
-                showToast("Punëtori u fshi me sukses! 🗑️");
-                fetchEmployees();
-            } catch (error) {
-                console.error("Gabim gjatë fshirjes:", error);
-            }
-        }
-    };
-
-    const openAddModal = () => {
-        setIsEditMode(false);
-        resetForm();
-        setIsModalOpen(true);
-    };
-
-    const openEditModal = (emp) => {
-        setIsEditMode(true);
-        setSelectedEmployee(emp);
-        setFormData({
-            name: emp.name,
-            position: emp.position,
-            email: emp.email,
-            salary: emp.salary
-        });
-        setIsModalOpen(true);
-    };
-
-    const resetForm = () => {
-        setFormData({ name: '', position: '', email: '', salary: '' });
-        setSelectedEmployee(null);
-    };
-
+  const filtered = employees.filter((e) => {
+    const q = search.toLowerCase();
     return (
-        <div className="container">
-            {/* Toast Notification */}
-            {toast.show && <div className="toast-notification">{toast.message}</div>}
-
-            <div className="header">
-                <h2>Menaxhimi i Punëtorëve</h2>
-                <button className="btn-add" onClick={openAddModal}>+ Shto Punëtor</button>
-            </div>
-
-            <table className="employee-table">
-                <thead>
-                    <tr>
-                        <th>Emri</th>
-                        <th>Pozita</th>
-                        <th>Email</th>
-                        <th>Paga</th>
-                        <th>Veprimet</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {employees.map((emp) => (
-                        <tr key={emp._id}>
-                            <td>{emp.name}</td>
-                            <td>{emp.position}</td>
-                            <td>{emp.email}</td>
-                            <td>{emp.salary}€</td>
-                            <td>
-                                <button className="btn-edit" onClick={() => openEditModal(emp)}>Ndrysho</button>
-                                <button className="btn-delete" onClick={() => handleDelete(emp._id)}>Fshij</button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-
-            {isModalOpen && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <h3>{isEditMode ? "Ndrysho Punëtorin" : "Shto Punëtor të Ri"}</h3>
-                        <form onSubmit={handleSubmit}>
-                            <input type="text" name="name" placeholder="Emri i plotë" value={formData.name} onChange={handleInputChange} />
-                            <input type="text" name="position" placeholder="Pozita" value={formData.position} onChange={handleInputChange} />
-                            <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleInputChange} />
-                            <input type="number" name="salary" placeholder="Paga" value={formData.salary} onChange={handleInputChange} />
-                            <div className="modal-actions">
-                                <button type="submit" className="btn-save">{isEditMode ? "Ruaj Ndryshimet" : "Shto"}</button>
-                                <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Anulo</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
+      `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+      e.email.toLowerCase().includes(q) ||
+      (e.position || '').toLowerCase().includes(q) ||
+      (e.department?.name || '').toLowerCase().includes(q)
     );
-};
+  });
+
+  const openAdd  = () => { setModalError(''); setModalEmployee(null); };
+  const openEdit = (emp) => { setModalError(''); setModalEmployee(emp); };
+  const closeModal = () => setModalEmployee(undefined);
+
+  const handleSave = (payload) => {
+    setSaving(true);
+    setModalError('');
+    const req = modalEmployee
+      ? client.put(`/api/employees/${modalEmployee.id}`, payload)
+      : client.post('/api/employees', payload);
+
+    req
+      .then(() => { closeModal(); fetchAll(); })
+      .catch((err) => setModalError(err.response?.data?.message || 'Failed to save employee'))
+      .finally(() => setSaving(false));
+  };
+
+  const handleDelete = () => {
+    setDeleting(true);
+    client.delete(`/api/employees/${confirmId}`)
+      .then(() => { setConfirmId(null); fetchAll(); })
+      .catch(() => {})
+      .finally(() => setDeleting(false));
+  };
+
+  if (loading) return <p className="status-msg">Loading…</p>;
+  if (error)   return <p className="error-msg">{error}</p>;
+
+  return (
+    <>
+      <div className="page-header">
+        <h3>{filtered.length} employee{filtered.length !== 1 ? 's' : ''}{search ? ' found' : ''}</h3>
+        <button className="btn btn-primary" onClick={openAdd}>+ Add Employee</button>
+      </div>
+
+      <div className="section-card">
+        <div className="table-toolbar">
+          <input
+            className="search-input"
+            placeholder="Search by name, email, position, department…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button className="btn btn-ghost" onClick={() => setSearch('')}>Clear</button>
+          )}
+        </div>
+
+        {filtered.length === 0 ? (
+          <p className="table-empty">{search ? 'No employees match your search.' : 'No employees yet. Add one to get started.'}</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Position</th>
+                <th>Department</th>
+                <th>Manager</th>
+                <th>Status</th>
+                <th>Hire Date</th>
+                <th style={{ width: 90 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((emp) => (
+                <tr key={emp.id}>
+                  <td>
+                    <strong>{emp.firstName} {emp.lastName}</strong>
+                    <br />
+                    <span style={{ color: '#94a3b8', fontSize: 12 }}>{emp.email}</span>
+                  </td>
+                  <td>{emp.position || '—'}</td>
+                  <td>{emp.department?.name || '—'}</td>
+                  <td>
+                    {emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : '—'}
+                  </td>
+                  <td>
+                    <span className={`badge badge-${emp.status}`}>
+                      {emp.status.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td>{emp.hireDate || '—'}</td>
+                  <td>
+                    <button className="btn-icon" title="Edit"   onClick={() => openEdit(emp)}>✏️</button>
+                    <button className="btn-icon" title="Delete" onClick={() => setConfirmId(emp.id)}>🗑️</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {modalEmployee !== undefined && (
+        <EmployeeModal
+          employee={modalEmployee}
+          departments={departments}
+          employees={employees}
+          onClose={closeModal}
+          onSave={handleSave}
+          loading={saving}
+          serverError={modalError}
+        />
+      )}
+
+      {confirmId && (
+        <ConfirmModal
+          title="Delete Employee"
+          message="Are you sure you want to delete this employee? This cannot be undone."
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmId(null)}
+          loading={deleting}
+        />
+      )}
+    </>
+  );
+}
 
 export default EmployeesPage;
