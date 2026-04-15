@@ -17,10 +17,23 @@ function App() {
     setUser(userData);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('nexus_user');
-    setUser(null);
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    try {
+      // Tell the server to invalidate the refresh token
+      if (refreshToken) {
+        await import('./api/client').then(({ default: client }) =>
+          client.post('/api/auth/logout', { refreshToken })
+        );
+      }
+    } catch {
+      // Ignore errors — always clear local session
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('nexus_user');
+      setUser(null);
+    }
   };
 
   if (!user) return <Login onLogin={handleLogin} />;

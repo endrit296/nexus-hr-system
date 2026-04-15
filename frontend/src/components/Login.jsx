@@ -40,6 +40,7 @@ function Login({ onLogin }) {
       if (mode === 'login') {
         const { data } = await client.post('/api/auth/login', { email, password });
         localStorage.setItem('token', data.token);
+        localStorage.setItem('refreshToken', data.refreshToken);
         onLogin(data.user);
       } else {
         // Validim shtesë për Register
@@ -50,6 +51,7 @@ function Login({ onLogin }) {
         }
         const { data } = await client.post('/api/auth/register', { username, email, password });
         localStorage.setItem('token', data.token);
+        localStorage.setItem('refreshToken', data.refreshToken);
         onLogin(data.user);
       }
     } catch (err) {
