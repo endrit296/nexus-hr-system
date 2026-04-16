@@ -65,10 +65,22 @@ function DepartmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {departments.map((dept) => (
+              {departments.map((dept, i) => {
+                const colors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#ec4899'];
+                const bg = colors[i % colors.length];
+                return (
                 <tr key={dept.id}>
-                  <td><strong>{dept.name}</strong></td>
-                  <td>{dept.employeeCount}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, flexShrink: 0 }}>🏢</div>
+                      <strong style={{ color: '#0f172a' }}>{dept.name}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#1d4ed8', padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
+                      👥 {dept.employeeCount}
+                    </span>
+                  </td>
                   <td>
                     <button
                       className="btn-icon"
@@ -77,7 +89,8 @@ function DepartmentsPage() {
                     >🗑️</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

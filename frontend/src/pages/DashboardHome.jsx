@@ -3,7 +3,7 @@ import client from '../api/client';
 
 function StatCard({ icon, iconClass, value, label }) {
   return (
-    <div className="stat-card">
+    <div className={`stat-card stat-card-${iconClass}`}>
       <div className={`stat-icon ${iconClass}`}>{icon}</div>
       <div>
         <div className="stat-value">{value}</div>
@@ -68,7 +68,17 @@ function DashboardHome() {
             <tbody>
               {recent.map((emp) => (
                 <tr key={emp.id}>
-                  <td><strong>{emp.firstName} {emp.lastName}</strong><br /><span style={{ color: '#94a3b8', fontSize: 12 }}>{emp.email}</span></td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                        {emp.firstName?.[0]}{emp.lastName?.[0]}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#0f172a', fontSize: 13 }}>{emp.firstName} {emp.lastName}</div>
+                        <div style={{ color: '#94a3b8', fontSize: 11.5 }}>{emp.email}</div>
+                      </div>
+                    </div>
+                  </td>
                   <td>{emp.position || '—'}</td>
                   <td>{emp.department?.name || '—'}</td>
                   <td><span className={`badge badge-${emp.status}`}>{emp.status.replace('_', ' ')}</span></td>

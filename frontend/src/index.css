@@ -1,38 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
+:root {
+  --blue:   #3b82f6;
+  --green:  #10b981;
+  --amber:  #f59e0b;
+  --purple: #8b5cf6;
+  --red:    #ef4444;
+  --slate-900: #0f172a;
+  --slate-800: #1e293b;
+  --slate-600: #475569;
+  --slate-400: #94a3b8;
+  --slate-100: #f1f5f9;
+}
+
 body {
   margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f9f9f9;
+  background-color: #f1f5f9;
 }
 
-/* SHTOJE KËTË PJESË KËTU POSHTË */
-
+/* ── Toast notification ──────────────────────────────────── */
 .toast-notification {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background-color: #10b981;
+  bottom: 24px;
+  right: 24px;
+  background: linear-gradient(135deg, #10b981, #059669);
   color: white;
-  padding: 12px 24px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  animation: slideIn 0.3s ease-out;
+  padding: 13px 20px 13px 16px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35), 0 2px 8px rgba(0,0,0,0.12);
+  animation: toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   z-index: 9999;
-  font-weight: bold;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
 }
 
-@keyframes slideIn {
-  from { 
-    transform: translateX(100%); 
-    opacity: 0; 
+.toast-notification::before {
+  content: '✓';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 50%;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+@keyframes toastIn {
+  from {
+    transform: translateX(110%) scale(0.9);
+    opacity: 0;
   }
-  to { 
-    transform: translateX(0); 
-    opacity: 1; 
+  to {
+    transform: translateX(0) scale(1);
+    opacity: 1;
   }
+}
+
+/* ── Page fade-in ─────────────────────────────────────────── */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Loading state ────────────────────────────────────────── */
+.status-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #64748b;
+  font-size: 14px;
+  padding: 40px 0;
+  justify-content: center;
+}
+
+.status-msg::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

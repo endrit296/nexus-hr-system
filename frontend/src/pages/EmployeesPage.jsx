@@ -105,9 +105,15 @@ function EmployeesPage() {
               {filtered.map((emp) => (
                 <tr key={emp.id}>
                   <td>
-                    <strong>{emp.firstName} {emp.lastName}</strong>
-                    <br />
-                    <span style={{ color: '#94a3b8', fontSize: 12 }}>{emp.email}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                        {emp.firstName?.[0]}{emp.lastName?.[0]}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#0f172a', fontSize: 13 }}>{emp.firstName} {emp.lastName}</div>
+                        <div style={{ color: '#94a3b8', fontSize: 11.5 }}>{emp.email}</div>
+                      </div>
+                    </div>
                   </td>
                   <td>{emp.position || '—'}</td>
                   <td>{emp.department?.name || '—'}</td>

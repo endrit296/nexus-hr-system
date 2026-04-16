@@ -67,12 +67,16 @@ services:
   # ── Databases ────────────────────────────────────────────────────────────────
   mongo:
     image: mongo:7
+    ports:
+      - '27017:27017'
     volumes:
       - mongo_data:/data/db
     restart: unless-stopped
 
   postgres:
     image: postgres:15-alpine
+    ports:
+      - '5432:5432'
     environment:
       - POSTGRES_DB=nexus_hr
       - POSTGRES_USER=postgres
