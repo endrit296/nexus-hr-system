@@ -28,7 +28,7 @@ const loginSchema = Joi.object({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const signAccessToken = (user) =>
-  jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, {
+  jwt.sign({ userId: user._id, username: user.username, role: user.role }, JWT_SECRET, {
     expiresIn: ACCESS_TOKEN_TTL,
   });
 
@@ -63,7 +63,7 @@ router.post('/register', async (req, res) => {
       message: 'User registered successfully',
       token:        accessToken,
       refreshToken,
-      user: { id: user._id, username: user.username, email: user.email },
+      user: { id: user._id, username: user.username, email: user.email, role: user.role },
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -92,7 +92,7 @@ router.post('/login', async (req, res) => {
       message: 'Login successful',
       token:        accessToken,
       refreshToken,
-      user: { id: user._id, username: user.username, email: user.email },
+      user: { id: user._id, username: user.username, email: user.email, role: user.role },
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -119,6 +119,59 @@ router.post('/refresh', async (req, res) => {
     const newAccessToken = signAccessToken(user);
 
     res.json({ token: newAccessToken });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── Auth middleware (used only for admin routes below) ───────────────────────
+
+const verifyAdmin = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
+// ── GET /auth/users — list all users (admin only) ────────────────────────────
+
+router.get('/users', verifyAdmin, async (req, res) => {
+  try {
+    const users = await User.find({}, { password: 0 }).sort({ createdAt: -1 });
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── PUT /auth/users/:id/role — assign role (admin only) ──────────────────────
+
+const roleSchema = Joi.object({
+  role: Joi.string().valid('employee', 'manager', 'admin').required(),
+});
+
+router.put('/users/:id/role', verifyAdmin, async (req, res) => {
+  const { error, value } = roleSchema.validate(req.body);
+  if (error) return res.status(400).json({ message: error.details[0].message });
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role: value.role },
+      { new: true, select: '-password' }
+    );
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'Role updated', user });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
