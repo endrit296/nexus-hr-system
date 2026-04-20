@@ -28,9 +28,11 @@ const loginSchema = Joi.object({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const signAccessToken = (user) =>
-  jwt.sign({ userId: user._id, username: user.username, role: user.role }, JWT_SECRET, {
-    expiresIn: ACCESS_TOKEN_TTL,
-  });
+  jwt.sign(
+    { userId: user._id, username: user.username, role: user.role || 'employee', email: user.email },
+    JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_TTL }
+  );
 
 const createRefreshToken = async (userId) => {
   const token     = crypto.randomBytes(40).toString('hex');

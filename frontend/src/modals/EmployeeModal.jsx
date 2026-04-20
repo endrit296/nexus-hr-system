@@ -7,7 +7,7 @@ const empty = {
   departmentId: '', managerId: '',
 };
 
-function EmployeeModal({ employee, departments, employees, onClose, onSave, loading, serverError }) {
+function EmployeeModal({ employee, departments, employees, userRole, onClose, onSave, loading, serverError }) {
   const [form, setForm] = useState(
     employee
       ? {
@@ -69,7 +69,8 @@ function EmployeeModal({ employee, departments, employees, onClose, onSave, load
     onSave(payload);
   };
 
-  const isEdit = !!employee;
+  const isEdit      = !!employee;
+  const canSeeSalary = userRole === 'admin';
   const managerOptions = employees.filter((e) => !isEdit || e.id !== employee.id);
 
   return (
@@ -134,10 +135,12 @@ function EmployeeModal({ employee, departments, employees, onClose, onSave, load
                 <label className="form-label">Hire Date</label>
                 <input className="form-input" type="date" value={form.hireDate} onChange={set('hireDate')} />
               </div>
-              <div className="form-group">
-                <label className="form-label">Salary</label>
-                <input className="form-input" type="number" min="0" step="0.01" value={form.salary} onChange={set('salary')} placeholder="50000" />
-              </div>
+              {canSeeSalary && (
+                <div className="form-group">
+                  <label className="form-label">Salary</label>
+                  <input className="form-input" type="number" min="0" step="0.01" value={form.salary} onChange={set('salary')} placeholder="50000" />
+                </div>
+              )}
               {(error || serverError) && <p className="form-error">⚠️ {error || serverError}</p>}
             </div>
           </div>

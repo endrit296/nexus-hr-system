@@ -1,7 +1,8 @@
-const express = require('express');
-const Joi = require('joi');
+const express    = require('express');
+const Joi        = require('joi');
 const Department = require('../models/Department');
-const Employee = require('../models/Employee');
+const Employee   = require('../models/Employee');
+const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -9,11 +10,11 @@ const departmentSchema = Joi.object({
   name: Joi.string().trim().required(),
 });
 
-// GET /departments — list all with employee count
+// GET /departments — all authenticated users
 router.get('/', async (req, res) => {
   try {
     const departments = await Department.findAll({ order: [['name', 'ASC']] });
-    const employees = await Employee.findAll({ attributes: ['departmentId'] });
+    const employees   = await Employee.findAll({ attributes: ['departmentId'] });
 
     const countMap = {};
     employees.forEach((e) => {
@@ -27,8 +28,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /departments — create
-router.post('/', async (req, res) => {
+// POST /departments — admin only
+router.post('/', requireRole('admin'), async (req, res) => {
   const { error, value } = departmentSchema.validate(req.body);
   if (error) return res.status(400).json({ message: error.details[0].message });
 
@@ -43,15 +44,17 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE /departments/:id — only if no employees assigned
-router.delete('/:id', async (req, res) => {
+// DELETE /departments/:id — admin only
+router.delete('/:id', requireRole('admin'), async (req, res) => {
   try {
     const dept = await Department.findByPk(req.params.id);
     if (!dept) return res.status(404).json({ message: 'Department not found' });
 
     const count = await Employee.count({ where: { departmentId: req.params.id } });
     if (count > 0) {
-      return res.status(400).json({ message: `Cannot delete: ${count} employee(s) still assigned to this department` });
+      return res.status(400).json({
+        message: `Cannot delete: ${count} employee(s) still assigned to this department`,
+      });
     }
 
     await dept.destroy();

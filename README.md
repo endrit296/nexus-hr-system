@@ -2,6 +2,60 @@
 
 A web-based Human Resources management platform built with a **microservices architecture**. Each concern is isolated into its own service — authentication, employee data, and an API Gateway that acts as the single entry point for all client requests.
 
+## Quick Start (Docker)
+
+```bash
+docker compose up --build
+```
+
+Open **http://localhost** in your browser.
+
+---
+
+## Demo Accounts
+
+All demo accounts use the password: **`Password123`**
+
+| Role | Email | Name | Position |
+|---|---|---|---|
+| **admin** | alice@nexushr.com | Alice Johnson | CEO |
+| **manager** | bob@nexushr.com | Bob Smith | CTO |
+| **manager** | frank@nexushr.com | Frank Miller | CMO |
+| **manager** | karen@nexushr.com | Karen Martinez | HR Director |
+| **manager** | ivy@nexushr.com | Ivy Chen | CFO |
+| **manager** | mike@nexushr.com | Mike Thompson | VP of Sales |
+| **employee** | carol@nexushr.com | Carol White | Senior Software Engineer |
+| **employee** | david@nexushr.com | David Lee | Senior Software Engineer |
+| **employee** | emma@nexushr.com | Emma Davis | Junior Software Engineer |
+| **employee** | grace@nexushr.com | Grace Wilson | Marketing Specialist |
+| **employee** | henry@nexushr.com | Henry Brown | Content Writer |
+| **employee** | jack@nexushr.com | Jack Taylor | Financial Analyst |
+| **employee** | liam@nexushr.com | Liam Anderson | HR Specialist |
+| **employee** | nina@nexushr.com | Nina Roberts | Sales Representative |
+| **employee** | oscar@nexushr.com | Oscar Garcia | Sales Representative |
+
+### Role Permissions
+
+| Feature | Employee | Manager | Admin |
+|---|:---:|:---:|:---:|
+| View employee directory & org chart | ✅ | ✅ | ✅ |
+| View departments | ✅ | ✅ | ✅ |
+| Edit direct subordinates | ❌ | ✅ | ✅ |
+| View / edit salary | ❌ | ❌ | ✅ |
+| Add / delete employees | ❌ | ❌ | ✅ |
+| Add / delete departments | ❌ | ❌ | ✅ |
+| User Management (assign roles) | ❌ | ❌ | ✅ |
+
+### Re-seeding demo data
+
+```bash
+docker cp scripts/seed-auth.js nexus-hr-system-auth-service-1:/app/seed-auth.js
+docker exec nexus-hr-system-auth-service-1 node seed-auth.js
+
+docker cp scripts/seed-employees.js nexus-hr-system-employee-service-1:/app/seed-employees.js
+docker exec nexus-hr-system-employee-service-1 node seed-employees.js
+```
+
 ---
 
 ## Table of Contents

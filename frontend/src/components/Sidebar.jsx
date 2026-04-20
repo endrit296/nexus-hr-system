@@ -1,12 +1,16 @@
 import './Layout.css';
 
-const navItems = [
-  { key: 'dashboard',   icon: '📊', label: 'Dashboard' },
-  { key: 'employees',   icon: '👥', label: 'Employees' },
-  { key: 'departments', icon: '🏢', label: 'Departments' },
+const NAV_ITEMS = [
+  { key: 'dashboard',   icon: '📊', label: 'Dashboard',       roles: ['employee', 'manager', 'admin'] },
+  { key: 'employees',   icon: '👥', label: 'Employees',        roles: ['employee', 'manager', 'admin'] },
+  { key: 'departments', icon: '🏢', label: 'Departments',      roles: ['employee', 'manager', 'admin'] },
+  { key: 'orgchart',    icon: '🌐', label: 'Org Chart',        roles: ['employee', 'manager', 'admin'] },
+  { key: 'users',       icon: '🔑', label: 'User Management',  roles: ['admin'] },
 ];
 
-function Sidebar({ activePage, onNavigate }) {
+function Sidebar({ activePage, onNavigate, userRole }) {
+  const visible = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
+
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
@@ -15,7 +19,7 @@ function Sidebar({ activePage, onNavigate }) {
       </div>
       <div className="sidebar-section">
         <p className="sidebar-section-label">Menu</p>
-        {navItems.map((item) => (
+        {visible.map((item) => (
           <button
             key={item.key}
             className={`nav-item ${activePage === item.key ? 'active' : ''}`}

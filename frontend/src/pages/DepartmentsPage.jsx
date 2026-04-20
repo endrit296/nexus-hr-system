@@ -3,7 +3,9 @@ import client from '../api/client';
 import DepartmentModal from '../modals/DepartmentModal';
 import ConfirmModal from '../modals/ConfirmModal';
 
-function DepartmentsPage() {
+function DepartmentsPage({ user }) {
+  const role = user?.role || 'employee';
+
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
@@ -14,6 +16,8 @@ function DepartmentsPage() {
   const [confirmId, setConfirmId]     = useState(null);
   const [deleting, setDeleting]       = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  const isAdmin = role === 'admin';
 
   const fetchDepartments = () =>
     client.get('/api/departments')
@@ -49,7 +53,9 @@ function DepartmentsPage() {
     <>
       <div className="page-header">
         <h3>{departments.length} department{departments.length !== 1 ? 's' : ''}</h3>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Department</button>
+        {isAdmin && (
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Department</button>
+        )}
       </div>
 
       <div className="section-card">
@@ -61,7 +67,7 @@ function DepartmentsPage() {
               <tr>
                 <th>Department</th>
                 <th>Employees</th>
-                <th style={{ width: 80 }}>Actions</th>
+                {isAdmin && <th style={{ width: 80 }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -69,26 +75,28 @@ function DepartmentsPage() {
                 const colors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#ec4899'];
                 const bg = colors[i % colors.length];
                 return (
-                <tr key={dept.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, flexShrink: 0 }}>🏢</div>
-                      <strong style={{ color: '#0f172a' }}>{dept.name}</strong>
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#1d4ed8', padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
-                      👥 {dept.employeeCount}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn-icon"
-                      title="Delete"
-                      onClick={() => { setDeleteError(''); setConfirmId(dept.id); }}
-                    >🗑️</button>
-                  </td>
-                </tr>
+                  <tr key={dept.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, flexShrink: 0 }}>🏢</div>
+                        <strong style={{ color: '#0f172a' }}>{dept.name}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#1d4ed8', padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
+                        👥 {dept.employeeCount}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td>
+                        <button
+                          className="btn-icon"
+                          title="Delete"
+                          onClick={() => { setDeleteError(''); setConfirmId(dept.id); }}
+                        >🗑️</button>
+                      </td>
+                    )}
+                  </tr>
                 );
               })}
             </tbody>
@@ -110,7 +118,7 @@ function DepartmentsPage() {
           message={
             deleteError
               ? deleteError
-              : `Are you sure you want to delete this department? This cannot be undone.`
+              : 'Are you sure you want to delete this department? This cannot be undone.'
           }
           onConfirm={handleDelete}
           onCancel={() => setConfirmId(null)}

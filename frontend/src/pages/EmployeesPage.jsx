@@ -3,19 +3,22 @@ import client from '../api/client';
 import EmployeeModal from '../modals/EmployeeModal';
 import ConfirmModal from '../modals/ConfirmModal';
 
-function EmployeesPage() {
+function EmployeesPage({ user }) {
+  const role = user?.role || 'employee';
+
   const [employees, setEmployees]     = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [search, setSearch]           = useState('');
 
-  const [modalEmployee, setModalEmployee] = useState(undefined); // undefined=closed, null=add, obj=edit
+  const [modalEmployee, setModalEmployee] = useState(undefined);
   const [saving, setSaving]               = useState(false);
   const [modalError, setModalError]       = useState('');
 
   const [confirmId, setConfirmId] = useState(null);
   const [deleting, setDeleting]   = useState(false);
+  const [newCredentials, setNewCredentials] = useState(null); // { email, password }
 
   const fetchAll = () =>
     Promise.all([client.get('/api/employees'), client.get('/api/departments')])
@@ -38,19 +41,40 @@ function EmployeesPage() {
     );
   });
 
-  const openAdd  = () => { setModalError(''); setModalEmployee(null); };
-  const openEdit = (emp) => { setModalError(''); setModalEmployee(emp); };
+  const openAdd   = () => { setModalError(''); setModalEmployee(null); };
+  const openEdit  = (emp) => { setModalError(''); setModalEmployee(emp); };
   const closeModal = () => setModalEmployee(undefined);
 
   const handleSave = (payload) => {
     setSaving(true);
     setModalError('');
-    const req = modalEmployee
-      ? client.put(`/api/employees/${modalEmployee.id}`, payload)
-      : client.post('/api/employees', payload);
+    const isNew = !modalEmployee;
+    const req   = isNew
+      ? client.post('/api/employees', payload)
+      : client.put(`/api/employees/${modalEmployee.id}`, payload);
 
     req
-      .then(() => { closeModal(); fetchAll(); })
+      .then(async ({ data: emp }) => {
+        closeModal();
+        fetchAll();
+
+        // Auto-provision a login account for every newly created employee
+        if (isNew && emp.email) {
+          const defaultPassword = 'Password123';
+          const username = `${payload.firstName}${payload.lastName}`
+            .toLowerCase().replace(/[^a-z0-9]/g, '');
+          try {
+            await client.post('/api/auth/register', {
+              username,
+              email:    emp.email,
+              password: defaultPassword,
+            });
+            setNewCredentials({ email: emp.email, password: defaultPassword });
+          } catch {
+            // 409 = auth account already exists — silently skip
+          }
+        }
+      })
       .catch((err) => setModalError(err.response?.data?.message || 'Failed to save employee'))
       .finally(() => setSaving(false));
   };
@@ -66,11 +90,17 @@ function EmployeesPage() {
   if (loading) return <p className="status-msg">Loading…</p>;
   if (error)   return <p className="error-msg">{error}</p>;
 
+  const canAdd    = role === 'admin';
+  const canEdit   = role === 'admin' || role === 'manager';
+  const canDelete = role === 'admin';
+
   return (
     <>
       <div className="page-header">
         <h3>{filtered.length} employee{filtered.length !== 1 ? 's' : ''}{search ? ' found' : ''}</h3>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Employee</button>
+        {canAdd && (
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Employee</button>
+        )}
       </div>
 
       <div className="section-card">
@@ -87,7 +117,9 @@ function EmployeesPage() {
         </div>
 
         {filtered.length === 0 ? (
-          <p className="table-empty">{search ? 'No employees match your search.' : 'No employees yet. Add one to get started.'}</p>
+          <p className="table-empty">
+            {search ? 'No employees match your search.' : 'No employees yet. Add one to get started.'}
+          </p>
         ) : (
           <table className="data-table">
             <thead>
@@ -98,7 +130,7 @@ function EmployeesPage() {
                 <th>Manager</th>
                 <th>Status</th>
                 <th>Hire Date</th>
-                <th style={{ width: 90 }}>Actions</th>
+                {(canEdit || canDelete) && <th style={{ width: 90 }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -117,19 +149,19 @@ function EmployeesPage() {
                   </td>
                   <td>{emp.position || '—'}</td>
                   <td>{emp.department?.name || '—'}</td>
-                  <td>
-                    {emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : '—'}
-                  </td>
+                  <td>{emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : '—'}</td>
                   <td>
                     <span className={`badge badge-${emp.status}`}>
                       {emp.status.replace('_', ' ')}
                     </span>
                   </td>
                   <td>{emp.hireDate || '—'}</td>
-                  <td>
-                    <button className="btn-icon" title="Edit"   onClick={() => openEdit(emp)}>✏️</button>
-                    <button className="btn-icon" title="Delete" onClick={() => setConfirmId(emp.id)}>🗑️</button>
-                  </td>
+                  {(canEdit || canDelete) && (
+                    <td>
+                      {canEdit   && <button className="btn-icon" title="Edit"   onClick={() => openEdit(emp)}>✏️</button>}
+                      {canDelete && <button className="btn-icon" title="Delete" onClick={() => setConfirmId(emp.id)}>🗑️</button>}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -142,6 +174,7 @@ function EmployeesPage() {
           employee={modalEmployee}
           departments={departments}
           employees={employees}
+          userRole={role}
           onClose={closeModal}
           onSave={handleSave}
           loading={saving}
@@ -157,6 +190,30 @@ function EmployeesPage() {
           onCancel={() => setConfirmId(null)}
           loading={deleting}
         />
+      )}
+
+      {newCredentials && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
+          background: '#0f172a', color: '#f1f5f9', borderRadius: 12,
+          padding: '16px 20px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          maxWidth: 340, fontSize: 13, lineHeight: 1.6,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 6, color: '#4ade80' }}>✓ Login account created</div>
+              <div style={{ color: '#94a3b8', fontSize: 11.5 }}>Share these credentials with the employee:</div>
+              <div style={{ marginTop: 8, background: '#1e293b', borderRadius: 7, padding: '8px 12px' }}>
+                <div><span style={{ color: '#64748b' }}>Email: </span><strong>{newCredentials.email}</strong></div>
+                <div><span style={{ color: '#64748b' }}>Password: </span><strong>{newCredentials.password}</strong></div>
+              </div>
+            </div>
+            <button
+              onClick={() => setNewCredentials(null)}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}
+            >✕</button>
+          </div>
+        </div>
       )}
     </>
   );

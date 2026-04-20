@@ -1,0 +1,215 @@
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+
+.org-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.org-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 6px;
+}
+
+.org-zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+
+.org-zoom-btn:hover { background: #e2e8f0; color: #0f172a; }
+
+.org-zoom-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  min-width: 36px;
+  text-align: center;
+}
+
+.org-reset-btn {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s;
+}
+
+.org-reset-btn:hover { background: #f1f5f9; color: #0f172a; }
+
+.org-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* ── Canvas (the draggable viewport) ────────────────────────────────────── */
+
+.org-canvas {
+  width: 100%;
+  height: calc(100vh - 240px);
+  min-height: 420px;
+  overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-color: #f8fafc;
+  border-radius: 0 0 12px 12px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.org-canvas.dragging { cursor: grabbing; }
+
+/* The inner tree — positioned and scaled via JS */
+.org-tree-wrap {
+  position: absolute;
+  left: 50%;
+  top: 48px;
+  transform-origin: top center;
+  /* transform is set inline by JS */
+}
+
+/* ── Node & card ─────────────────────────────────────────────────────────── */
+
+.org-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.org-card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  width: 192px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: box-shadow 0.15s, border-color 0.15s;
+  pointer-events: auto;
+}
+
+.org-card:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.11);
+  border-color: #93c5fd;
+}
+
+.org-card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.org-card-name {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.org-card-position {
+  color: #64748b;
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.org-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.org-card-dept {
+  font-size: 10px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.org-card.highlighted {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.18);
+}
+
+.org-card.dimmed { opacity: 0.25; }
+
+/* ── Connectors ──────────────────────────────────────────────────────────── */
+
+.org-line-v {
+  width: 2px;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.org-children-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.org-child-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding: 0 18px;
+}
+
+/* Horizontal bar — clips correctly for first/last/only child */
+.org-child-wrap::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #cbd5e1;
+}
+.org-child-wrap:first-child::before { left:  50%; }
+.org-child-wrap:last-child::before  { right: 50%; }
+.org-child-wrap:only-child::before  { display: none; }
