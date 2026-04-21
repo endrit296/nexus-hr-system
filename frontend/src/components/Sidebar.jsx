@@ -1,31 +1,20 @@
-import './Layout.css';
+import { Link, useLocation } from 'react-router-dom';
 
-const NAV_ITEMS = [
-  { key: 'dashboard',   icon: '📊', label: 'Dashboard',       roles: ['employee', 'manager', 'admin'] },
-  { key: 'employees',   icon: '👥', label: 'Employees',        roles: ['employee', 'manager', 'admin'] },
-  { key: 'departments', icon: '🏢', label: 'Departments',      roles: ['employee', 'manager', 'admin'] },
-  { key: 'orgchart',    icon: '🌐', label: 'Org Chart',        roles: ['employee', 'manager', 'admin'] },
-  { key: 'users',       icon: '🔑', label: 'User Management',  roles: ['admin'] },
+const navItems = [
+  { path: '/dashboard', icon: '📊', label: 'Dashboard' },
+  { path: '/employees', icon: '👥', label: 'Employees' },
+  { path: '/departments', icon: '🏢', label: 'Departments' },
 ];
 
-const roleBadgeStyle = {
-  admin:    { background: 'rgba(253,211,77,0.15)',  color: '#fcd34d' },
-  manager:  { background: 'rgba(147,197,253,0.15)', color: '#93c5fd' },
-  employee: { background: 'rgba(100,116,139,0.15)', color: '#94a3b8' },
-};
-
-function Sidebar({ activePage, onNavigate, userRole, user }) {
+function Sidebar({ activePage, onNavigate, userRole }) {
   const visible = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
-  const initials = user?.username?.[0]?.toUpperCase() || '?';
-  const badge = roleBadgeStyle[userRole] || roleBadgeStyle.employee;
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">
-        <span className="sidebar-logo-icon">🏢</span>
-        <span className="sidebar-logo-text">Nexus HR</span>
+    <aside className="w-64 bg-slate-800 border-r border-slate-700 flex flex-col shadow-2xl">
+      <div className="p-6 flex items-center gap-3 border-b border-slate-700/50">
+        <span className="text-2xl bg-blue-500/20 p-2 rounded-lg">🏢</span>
+        <span className="text-xl font-bold tracking-tight text-white">Nexus <span className="text-blue-500">HR</span></span>
       </div>
-
       <div className="sidebar-section">
         <p className="sidebar-section-label">Menu</p>
         {visible.map((item) => (

@@ -3,28 +3,25 @@ import client from '../api/client';
 import EmployeeModal from '../modals/EmployeeModal';
 import ConfirmModal from '../modals/ConfirmModal';
 
-function EmployeesPage({ user }) {
-  const role = user?.role || 'employee';
-
+function EmployeesPage() {
   const [employees, setEmployees]     = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [search, setSearch]           = useState('');
 
-  const [modalEmployee, setModalEmployee] = useState(undefined);
+  const [modalEmployee, setModalEmployee] = useState(undefined); 
   const [saving, setSaving]               = useState(false);
   const [modalError, setModalError]       = useState('');
 
   const [confirmId, setConfirmId] = useState(null);
   const [deleting, setDeleting]   = useState(false);
-  const [newCredentials, setNewCredentials] = useState(null); // { email, password }
 
   const fetchAll = () =>
     Promise.all([client.get('/api/employees'), client.get('/api/departments')])
       .then(([empRes, deptRes]) => {
-        setEmployees(empRes.data.employees);
-        setDepartments(deptRes.data.departments);
+        setEmployees(empRes.data.employees || []);
+        setDepartments(deptRes.data.departments || []);
       })
       .catch(() => setError('Failed to load data'))
       .finally(() => setLoading(false));
@@ -41,40 +38,19 @@ function EmployeesPage({ user }) {
     );
   });
 
-  const openAdd   = () => { setModalError(''); setModalEmployee(null); };
-  const openEdit  = (emp) => { setModalError(''); setModalEmployee(emp); };
+  const openAdd  = () => { setModalError(''); setModalEmployee(null); };
+  const openEdit = (emp) => { setModalError(''); setModalEmployee(emp); };
   const closeModal = () => setModalEmployee(undefined);
 
   const handleSave = (payload) => {
     setSaving(true);
     setModalError('');
-    const isNew = !modalEmployee;
-    const req   = isNew
-      ? client.post('/api/employees', payload)
-      : client.put(`/api/employees/${modalEmployee.id}`, payload);
+    const req = modalEmployee
+      ? client.put(`/api/employees/${modalEmployee.id}`, payload)
+      : client.post('/api/employees', payload);
 
     req
-      .then(async ({ data: emp }) => {
-        closeModal();
-        fetchAll();
-
-        // Auto-provision a login account for every newly created employee
-        if (isNew && emp.email) {
-          const defaultPassword = 'Password123';
-          const username = `${payload.firstName}${payload.lastName}`
-            .toLowerCase().replace(/[^a-z0-9]/g, '');
-          try {
-            await client.post('/api/auth/register', {
-              username,
-              email:    emp.email,
-              password: defaultPassword,
-            });
-            setNewCredentials({ email: emp.email, password: defaultPassword });
-          } catch {
-            // 409 = auth account already exists — silently skip
-          }
-        }
-      })
+      .then(() => { closeModal(); fetchAll(); })
       .catch((err) => setModalError(err.response?.data?.message || 'Failed to save employee'))
       .finally(() => setSaving(false));
   };
@@ -87,94 +63,114 @@ function EmployeesPage({ user }) {
       .finally(() => setDeleting(false));
   };
 
-  if (loading) return <p className="status-msg">Loading…</p>;
-  if (error)   return <p className="error-msg">{error}</p>;
-
-  const canAdd    = role === 'admin';
-  const canEdit   = role === 'admin' || role === 'manager';
-  const canDelete = role === 'admin';
+  if (loading) return <p className="text-center p-10 text-slate-500 font-medium">Loading...</p>;
+  if (error)   return <p className="text-center p-10 text-red-500 font-medium">{error}</p>;
 
   return (
-    <>
-      <div className="page-header">
-        <h3>{filtered.length} employee{filtered.length !== 1 ? 's' : ''}{search ? ' found' : ''}</h3>
-        {canAdd && (
-          <button className="btn btn-primary" onClick={openAdd}>+ Add Employee</button>
+    <div className="p-8 w-full max-w-7xl mx-auto space-y-6">
+      {/* Header-i i ri */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">
+            {filtered.length} employee{filtered.length !== 1 ? 's' : ''}{search ? ' found' : ''}
+          </h2>
+          <p className="text-slate-500 text-sm">Menaxhoni stafin dhe të dhënat e tyre</p>
+        </div>
+        <button 
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow-sm flex items-center justify-center gap-2" 
+          onClick={openAdd}
+        >
+          <span className="text-lg">+</span> Add Employee
+        </button>
+      </div>
+
+      {/* Toolbar-i i Search-it */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex gap-2">
+        <input
+          className="flex-1 bg-slate-50 border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          placeholder="Search by name, email, position, department..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button className="text-slate-400 hover:text-slate-600 text-sm font-medium px-2" onClick={() => setSearch('')}>
+            Clear
+          </button>
         )}
       </div>
 
-      <div className="section-card">
-        <div className="table-toolbar">
-          <input
-            className="search-input"
-            placeholder="Search by name, email, position, department…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className="btn btn-ghost" onClick={() => setSearch('')}>Clear</button>
+      {/* Tabela me stilin e ri */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          {filtered.length === 0 ? (
+            <div className="p-20 text-center">
+              <p className="text-slate-400 font-medium">
+                {search ? 'No employees match your search.' : 'No employees yet. Add one to get started.'}
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider font-semibold">
+                  <th className="p-4 border-b">Name</th>
+                  <th className="p-4 border-b">Position</th>
+                  <th className="p-4 border-b">Department</th>
+                  <th className="p-4 border-b">Manager</th>
+                  <th className="p-4 border-b">Status</th>
+                  <th className="p-4 border-b">Hire Date</th>
+                  <th className="p-4 border-b text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filtered.map((emp) => (
+                  <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                          {emp.firstName?.[0]}{emp.lastName?.[0]}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-900 text-sm">{emp.firstName} {emp.lastName}</div>
+                          <div className="text-slate-400 text-[11px]">{emp.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-slate-600 font-medium">{emp.position || '—'}</td>
+                    <td className="p-4 text-sm text-slate-600">{emp.department?.name || '—'}</td>
+                    <td className="p-4 text-sm text-slate-500">
+                      {emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : '—'}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-tight
+                        ${emp.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {emp.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-slate-500">{emp.hireDate || '—'}</td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors" title="Edit" onClick={() => openEdit(emp)}>
+                          ✏️
+                        </button>
+                        <button className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors" title="Delete" onClick={() => setConfirmId(emp.id)}>
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
-
-        {filtered.length === 0 ? (
-          <p className="table-empty">
-            {search ? 'No employees match your search.' : 'No employees yet. Add one to get started.'}
-          </p>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Position</th>
-                <th>Department</th>
-                <th>Manager</th>
-                <th>Status</th>
-                <th>Hire Date</th>
-                {(canEdit || canDelete) && <th style={{ width: 90 }}>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((emp) => (
-                <tr key={emp.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                        {emp.firstName?.[0]}{emp.lastName?.[0]}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#0f172a', fontSize: 13 }}>{emp.firstName} {emp.lastName}</div>
-                        <div style={{ color: '#94a3b8', fontSize: 11.5 }}>{emp.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{emp.position || '—'}</td>
-                  <td>{emp.department?.name || '—'}</td>
-                  <td>{emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : '—'}</td>
-                  <td>
-                    <span className={`badge badge-${emp.status}`}>
-                      {emp.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td>{emp.hireDate || '—'}</td>
-                  {(canEdit || canDelete) && (
-                    <td>
-                      {canEdit   && <button className="btn-icon" title="Edit"   onClick={() => openEdit(emp)}>✏️</button>}
-                      {canDelete && <button className="btn-icon" title="Delete" onClick={() => setConfirmId(emp.id)}>🗑️</button>}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </div>
 
+      {/* Modals mbeten po njësoj pasi ato kanë dizajnin e tyre */}
       {modalEmployee !== undefined && (
         <EmployeeModal
           employee={modalEmployee}
           departments={departments}
           employees={employees}
-          userRole={role}
           onClose={closeModal}
           onSave={handleSave}
           loading={saving}
@@ -191,31 +187,7 @@ function EmployeesPage({ user }) {
           loading={deleting}
         />
       )}
-
-      {newCredentials && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
-          background: '#0f172a', color: '#f1f5f9', borderRadius: 12,
-          padding: '16px 20px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-          maxWidth: 340, fontSize: 13, lineHeight: 1.6,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 6, color: '#4ade80' }}>✓ Login account created</div>
-              <div style={{ color: '#94a3b8', fontSize: 11.5 }}>Share these credentials with the employee:</div>
-              <div style={{ marginTop: 8, background: '#1e293b', borderRadius: 7, padding: '8px 12px' }}>
-                <div><span style={{ color: '#64748b' }}>Email: </span><strong>{newCredentials.email}</strong></div>
-                <div><span style={{ color: '#64748b' }}>Password: </span><strong>{newCredentials.password}</strong></div>
-              </div>
-            </div>
-            <button
-              onClick={() => setNewCredentials(null)}
-              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}
-            >✕</button>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
