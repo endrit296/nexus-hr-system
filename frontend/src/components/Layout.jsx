@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import RoleBadge from './ui/RoleBadge';
 import Sidebar from './Sidebar';
 import DashboardHome from '../pages/DashboardHome';
 import EmployeesPage from '../pages/EmployeesPage';
@@ -17,12 +18,6 @@ const pageTitles = {
   profile:     'My Profile',
 };
 
-const roleBadge = {
-  admin:    { background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' },
-  manager:  { background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd' },
-  employee: { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' },
-};
-
 function Layout({ user, onLogout }) {
   const [activePage, setActivePage] = useState('dashboard');
 
@@ -38,8 +33,6 @@ function Layout({ user, onLogout }) {
     }
   };
 
-  const badge = roleBadge[user.role] || roleBadge.employee;
-
   return (
     <div className="layout">
       <Sidebar activePage={activePage} onNavigate={setActivePage} userRole={user.role} user={user} />
@@ -47,17 +40,7 @@ function Layout({ user, onLogout }) {
         <header className="topbar">
           <h2 className="topbar-title">{pageTitles[activePage]}</h2>
           <div className="topbar-right">
-            <span style={{
-              ...badge,
-              padding: '3px 10px',
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}>
-              {user.role || 'employee'}
-            </span>
+            <RoleBadge role={user.role || 'employee'} />
             <button
               className="topbar-user"
               onClick={() => setActivePage('profile')}

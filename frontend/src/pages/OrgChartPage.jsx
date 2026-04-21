@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import client from '../api/client';
+import StatusBadge from '../components/ui/StatusBadge';
+import Spinner from '../components/ui/Spinner';
 import './OrgChartPage.css';
 
 // ── Tree builder ──────────────────────────────────────────────────────────────
@@ -17,9 +19,6 @@ function buildTree(employees) {
 // ── Employee card ─────────────────────────────────────────────────────────────
 function OrgCard({ employee, highlight }) {
   const initials = `${employee.firstName?.[0] || ''}${employee.lastName?.[0] || ''}`.toUpperCase();
-  const statusClass = employee.status === 'active' ? 'badge-active'
-    : employee.status === 'on_leave' ? 'badge-on_leave' : 'badge-inactive';
-
   return (
     <div className={`org-card ${highlight === 'on' ? 'highlighted' : highlight === 'dim' ? 'dimmed' : ''}`}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -33,9 +32,7 @@ function OrgCard({ employee, highlight }) {
         {employee.department?.name && (
           <span className="org-card-dept">🏢 {employee.department.name}</span>
         )}
-        <span className={`badge ${statusClass}`} style={{ fontSize: 10, padding: '1px 7px' }}>
-          {(employee.status || 'active').replace('_', ' ')}
-        </span>
+        <StatusBadge status={employee.status || 'active'} />
       </div>
     </div>
   );
@@ -227,7 +224,7 @@ function OrgChartPage() {
     new Set(employees.map((e) => e.departmentId).filter(Boolean)).size,
   [employees]);
 
-  if (loading) return <p className="status-msg">Loading…</p>;
+  if (loading) return <Spinner />;
   if (error)   return <p className="error-msg">{error}</p>;
 
   return (

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import client from '../api/client';
+import Avatar from '../components/ui/Avatar';
+import RoleBadge from '../components/ui/RoleBadge';
+import StatusBadge from '../components/ui/StatusBadge';
+import Spinner from '../components/ui/Spinner';
 import './ProfilePage.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function initials(first, last) {
-  return `${first?.[0] || ''}${last?.[0] || ''}`.toUpperCase();
-}
 
 function formatDateShort(dateStr) {
   if (!dateStr) return '—';
@@ -29,12 +29,6 @@ function calcTenure(hireDateStr) {
   if (months === 0) return `${years} yr`;
   return `${years} yr ${months} mo`;
 }
-
-const roleBadgeStyle = {
-  admin:    { background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' },
-  manager:  { background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd' },
-  employee: { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' },
-};
 
 // ── Phone inline editor ───────────────────────────────────────────────────────
 
@@ -107,10 +101,9 @@ function ProfilePage({ user }) {
     setEmployee((prev) => ({ ...prev, phone: data.phone }));
   };
 
-  if (loading) return <p className="status-msg">Loading…</p>;
+  if (loading) return <Spinner />;
 
   const role        = user?.role || 'employee';
-  const badgeStyle  = roleBadgeStyle[role] || roleBadgeStyle.employee;
   const tenure      = employee ? calcTenure(employee.hireDate) : null;
   const subordinates = employee?.subordinates || [];
 
@@ -118,11 +111,9 @@ function ProfilePage({ user }) {
     <>
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <div className="profile-hero">
-        <div className="profile-hero-avatar">
-          {employee
-            ? initials(employee.firstName, employee.lastName)
-            : (user?.username?.[0] || '?').toUpperCase()}
-        </div>
+        {employee
+          ? <Avatar firstName={employee.firstName} lastName={employee.lastName} size="lg" />
+          : <Avatar firstName={user?.username} lastName="" size="lg" />}
 
         <div className="profile-hero-info">
           <h2 className="profile-hero-name">
@@ -134,11 +125,7 @@ function ProfilePage({ user }) {
             {employee?.position || 'No position assigned'}
           </p>
           <div className="profile-hero-tags">
-            {employee?.status && (
-              <span className={`profile-hero-tag status-${employee.status}`}>
-                {employee.status.replace('_', ' ')}
-              </span>
-            )}
+            {employee?.status && <StatusBadge status={employee.status} />}
             {employee?.department?.name && (
               <span className="profile-hero-tag dept-tag">
                 🏢 {employee.department.name}
@@ -195,12 +182,7 @@ function ProfilePage({ user }) {
             <span className="profile-field-icon">🔑</span>
             <div className="profile-field-body">
               <div className="profile-field-label">Role</div>
-              <span
-                className="profile-role-badge"
-                style={badgeStyle}
-              >
-                {role}
-              </span>
+              <RoleBadge role={role} />
             </div>
           </div>
         </div>
@@ -275,9 +257,7 @@ function ProfilePage({ user }) {
           <div className="profile-reports-grid">
             {subordinates.map((sub) => (
               <div key={sub.id} className="profile-report-chip">
-                <div className="profile-report-avatar">
-                  {initials(sub.firstName, sub.lastName)}
-                </div>
+                <Avatar firstName={sub.firstName} lastName={sub.lastName} size="sm" />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div className="profile-report-name">{sub.firstName} {sub.lastName}</div>

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import './Modal.css';
+import Modal from '../components/ui/Modal';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
 
 const empty = {
   firstName: '', lastName: '', email: '', phone: '',
@@ -29,29 +31,20 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    e?.preventDefault();
 
-    // ── VALIDIMET E FAZËS II ─────────────────────────────────
-
-    // 1. Kontrolli për fushat e detyrueshme
     if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
-      setError('Emri, mbiemri dhe email-i janë të detyrueshëm!');
+      setError('First name, last name and email are required.');
       return;
     }
-
-    // 2. Kontrolli i formatit të email-it
     if (!form.email.includes('@')) {
-      setError('Ju lutem jepni një email të vlefshëm!');
+      setError('Please enter a valid email address.');
       return;
     }
-
-    // 3. Kontrolli i pagës (nuk lejohen numra negativë)
     if (form.salary && Number(form.salary) < 0) {
-      setError('Paga nuk mund të jetë numër negativ!');
+      setError('Salary cannot be a negative number.');
       return;
     }
-
-    // ─────────────────────────────────────────────────────────
 
     setError('');
     const payload = {
@@ -69,90 +62,83 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
     onSave(payload);
   };
 
-  const isEdit      = !!employee;
-  const canSeeSalary = userRole === 'admin';
+  const isEdit         = !!employee;
+  const canSeeSalary   = userRole === 'admin';
   const managerOptions = employees.filter((e) => !isEdit || e.id !== employee.id);
+  const displayError   = error || serverError;
+
+  const labelCls = 'block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5';
+  const inputCls = 'w-full h-[46px] px-3 rounded border-[1.5px] border-slate-200 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all duration-200';
+  const selectCls = inputCls;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-card">
-        <div className="modal-header">
-          <h3 className="modal-title">{isEdit ? 'Edit Employee' : 'Add Employee'}</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={isEdit ? 'Edit Employee' : 'Add Employee'}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={loading}>
+            {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Employee'}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="First Name *" value={form.firstName} onChange={set('firstName')} placeholder="Jane" />
+          <Input label="Last Name *"  value={form.lastName}  onChange={set('lastName')}  placeholder="Doe" />
+          <Input label="Email *"      type="email" value={form.email} onChange={set('email')} placeholder="jane@company.com" />
+          <Input label="Phone"        value={form.phone}    onChange={set('phone')}    placeholder="+1 555 000 0000" />
+          <Input label="Position"     value={form.position} onChange={set('position')} placeholder="Software Engineer" />
+
+          <div className="flex flex-col">
+            <label className={labelCls}>Status</label>
+            <select className={selectCls} value={form.status} onChange={set('status')}>
+              <option value="active">Active</option>
+              <option value="on_leave">On Leave</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col">
+            <label className={labelCls}>Department</label>
+            <select className={selectCls} value={form.departmentId} onChange={set('departmentId')}>
+              <option value="">— None —</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col">
+            <label className={labelCls}>Manager</label>
+            <select className={selectCls} value={form.managerId} onChange={set('managerId')}>
+              <option value="">— None —</option>
+              {managerOptions.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.firstName} {e.lastName}{e.position ? ` — ${e.position}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Input label="Hire Date" type="date" value={form.hireDate} onChange={set('hireDate')} />
+
+          {canSeeSalary && (
+            <Input label="Salary" type="number" min="0" step="0.01" value={form.salary} onChange={set('salary')} placeholder="50000" />
+          )}
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">First Name *</label>
-                <input className="form-input" value={form.firstName} onChange={set('firstName')} placeholder="Jane" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Last Name *</label>
-                <input className="form-input" value={form.lastName} onChange={set('lastName')} placeholder="Doe" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Email *</label>
-                <input className="form-input" type="email" value={form.email} onChange={set('email')} placeholder="jane@company.com" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Phone</label>
-                <input className="form-input" value={form.phone} onChange={set('phone')} placeholder="+1 555 000 0000" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Position</label>
-                <input className="form-input" value={form.position} onChange={set('position')} placeholder="Software Engineer" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Status</label>
-                <select className="form-select" value={form.status} onChange={set('status')}>
-                  <option value="active">Active</option>
-                  <option value="on_leave">On Leave</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Department</label>
-                <select className="form-select" value={form.departmentId} onChange={set('departmentId')}>
-                  <option value="">— None —</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Manager</label>
-                <select className="form-select" value={form.managerId} onChange={set('managerId')}>
-                  <option value="">— None —</option>
-                  {managerOptions.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.firstName} {e.lastName}{e.position ? ` — ${e.position}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Hire Date</label>
-                <input className="form-input" type="date" value={form.hireDate} onChange={set('hireDate')} />
-              </div>
-              {canSeeSalary && (
-                <div className="form-group">
-                  <label className="form-label">Salary</label>
-                  <input className="form-input" type="number" min="0" step="0.01" value={form.salary} onChange={set('salary')} placeholder="50000" />
-                </div>
-              )}
-              {(error || serverError) && <p className="form-error">⚠️ {error || serverError}</p>}
-            </div>
-          </div>
-          <div className="modal-footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Employee'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+
+        {displayError && (
+          <p className="mt-4 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            ⚠️ {displayError}
+          </p>
+        )}
+      </form>
+    </Modal>
   );
 }
 

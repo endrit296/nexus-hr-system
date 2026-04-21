@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Login from './components/Login';
 import Layout from './components/Layout';
 
@@ -37,7 +38,21 @@ function App() {
   };
 
   return (
-    <Routes>
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            borderRadius: '8px',
+            background: '#0f172a',
+            color: '#fff',
+            fontSize: '13px',
+            fontFamily: '"DM Sans", sans-serif',
+          },
+        }}
+      />
+      <Routes>
       {/* Nëse nuk është i loguar, shfaq vetëm Login */}
       <Route 
         path="/login" 
@@ -49,7 +64,8 @@ function App() {
         path="/*" 
         element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />} 
       />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 
