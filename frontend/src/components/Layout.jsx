@@ -1,65 +1,49 @@
-import { useState } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import DashboardHome from '../pages/DashboardHome';
 import EmployeesPage from '../pages/EmployeesPage';
 import DepartmentsPage from '../pages/DepartmentsPage';
-import OrgChartPage from '../pages/OrgChartPage';
-import UserManagementPage from '../pages/UserManagementPage';
-import './Layout.css';
 
 const pageTitles = {
-  dashboard:   'Dashboard',
-  employees:   'Employees',
-  departments: 'Departments',
-  orgchart:    'Organization Chart',
-  users:       'User Management',
-};
-
-const roleBadge = {
-  admin:    { background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' },
-  manager:  { background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd' },
-  employee: { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' },
+  '/dashboard': 'Dashboard',
+  '/employees': 'Employees',
+  '/departments': 'Departments',
 };
 
 function Layout({ user, onLogout }) {
-  const [activePage, setActivePage] = useState('dashboard');
-
-  const renderPage = () => {
-    switch (activePage) {
-      case 'dashboard':   return <DashboardHome />;
-      case 'employees':   return <EmployeesPage user={user} />;
-      case 'departments': return <DepartmentsPage user={user} />;
-      case 'orgchart':    return <OrgChartPage />;
-      case 'users':       return user.role === 'admin' ? <UserManagementPage currentUserId={user.id} /> : <DashboardHome />;
-      default:            return <DashboardHome />;
-    }
-  };
-
-  const badge = roleBadge[user.role] || roleBadge.employee;
+  const location = useLocation();
+  const currentTitle = pageTitles[location.pathname] || 'Nexus HR';
 
   return (
-    <div className="layout">
-      <Sidebar activePage={activePage} onNavigate={setActivePage} userRole={user.role} />
-      <div className="layout-main">
-        <header className="topbar">
-          <h2 className="topbar-title">{pageTitles[activePage]}</h2>
-          <div className="topbar-right">
-            <span style={{
-              ...badge,
-              padding: '3px 10px',
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}>
-              {user.role || 'employee'}
+    <div className="flex h-screen bg-slate-900 text-white font-sans">
+      <Sidebar />
+      
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="h-16 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-8 shadow-lg">
+          <h2 className="text-xl font-semibold text-blue-400">{currentTitle}</h2>
+          
+          <div className="flex items-center gap-6">
+            <span className="text-sm font-medium text-slate-300 bg-slate-700 px-3 py-1 rounded-full border border-slate-600">
+              👤 {user.username}
             </span>
-            <span className="topbar-user">👤 {user.username}</span>
-            <button onClick={onLogout} className="topbar-logout">Sign out</button>
+            <button 
+              onClick={onLogout} 
+              className="text-sm bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all duration-200 border border-red-500/20"
+            >
+              Sign out
+            </button>
           </div>
         </header>
-        <main className="page-content">{renderPage()}</main>
+
+        <main className="flex-1 overflow-y-auto p-8 bg-slate-900">
+          <Routes>
+            <Route path="dashboard" element={<DashboardHome />} />
+            <Route path="employees" element={<EmployeesPage />} />
+            <Route path="departments" element={<DepartmentsPage />} />
+            {/* Redirect automatik te dashboard */}
+            <Route path="/" element={<Navigate replace to="dashboard" />} />
+          </Routes>
+        </main>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Layout from './components/Layout';
 
@@ -20,14 +21,13 @@ function App() {
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem('refreshToken');
     try {
-      // Tell the server to invalidate the refresh token
       if (refreshToken) {
         await import('./api/client').then(({ default: client }) =>
           client.post('/api/auth/logout', { refreshToken })
         );
       }
     } catch {
-      // Ignore errors — always clear local session
+      // Ignore
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
@@ -36,8 +36,21 @@ function App() {
     }
   };
 
-  if (!user) return <Login onLogin={handleLogin} />;
-  return <Layout user={user} onLogout={handleLogout} />;
+  return (
+    <Routes>
+      {/* Nëse nuk është i loguar, shfaq vetëm Login */}
+      <Route 
+        path="/login" 
+        element={!user ? <Login onLogin={handleLogin} /> : <Navigate replace to="/dashboard" />} 
+      />
+      
+      {/* Nëse është i loguar, shfaq Layout-in që mban faqet e tjera */}
+      <Route 
+        path="/*" 
+        element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />} 
+      />
+    </Routes>
+  );
 }
 
 export default App;
