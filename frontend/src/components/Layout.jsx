@@ -5,6 +5,7 @@ import EmployeesPage from '../pages/EmployeesPage';
 import DepartmentsPage from '../pages/DepartmentsPage';
 import OrgChartPage from '../pages/OrgChartPage';
 import UserManagementPage from '../pages/UserManagementPage';
+import ProfilePage from '../pages/ProfilePage';
 import './Layout.css';
 
 const pageTitles = {
@@ -13,6 +14,7 @@ const pageTitles = {
   departments: 'Departments',
   orgchart:    'Organization Chart',
   users:       'User Management',
+  profile:     'My Profile',
 };
 
 const roleBadge = {
@@ -31,6 +33,7 @@ function Layout({ user, onLogout }) {
       case 'departments': return <DepartmentsPage user={user} />;
       case 'orgchart':    return <OrgChartPage />;
       case 'users':       return user.role === 'admin' ? <UserManagementPage currentUserId={user.id} /> : <DashboardHome />;
+      case 'profile':     return <ProfilePage user={user} />;
       default:            return <DashboardHome />;
     }
   };
@@ -39,7 +42,7 @@ function Layout({ user, onLogout }) {
 
   return (
     <div className="layout">
-      <Sidebar activePage={activePage} onNavigate={setActivePage} userRole={user.role} />
+      <Sidebar activePage={activePage} onNavigate={setActivePage} userRole={user.role} user={user} />
       <div className="layout-main">
         <header className="topbar">
           <h2 className="topbar-title">{pageTitles[activePage]}</h2>
@@ -55,7 +58,13 @@ function Layout({ user, onLogout }) {
             }}>
               {user.role || 'employee'}
             </span>
-            <span className="topbar-user">👤 {user.username}</span>
+            <button
+              className="topbar-user"
+              onClick={() => setActivePage('profile')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              👤 {user.username}
+            </button>
             <button onClick={onLogout} className="topbar-logout">Sign out</button>
           </div>
         </header>

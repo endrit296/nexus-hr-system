@@ -42,6 +42,50 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /employees/me — returns the current user's employee record + subordinates
+router.get('/me', async (req, res) => {
+  const userEmail = req.headers['x-user-email'];
+  if (!userEmail) return res.status(401).json({ message: 'Authentication required' });
+
+  try {
+    const employee = await Employee.findOne({
+      where: { email: userEmail },
+      include: [
+        ...includeAssociations,
+        {
+          model:      Employee,
+          as:         'subordinates',
+          attributes: ['id', 'firstName', 'lastName', 'position', 'status'],
+          include:    [{ model: Department, as: 'department', attributes: ['id', 'name'] }],
+        },
+      ],
+    });
+    if (!employee) return res.status(404).json({ message: 'No employee record linked to your account' });
+    res.json(employee);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// PUT /employees/me — any authenticated user can update their own phone
+router.put('/me', async (req, res) => {
+  const userEmail = req.headers['x-user-email'];
+  if (!userEmail) return res.status(401).json({ message: 'Authentication required' });
+
+  const { phone } = req.body;
+
+  try {
+    const employee = await Employee.findOne({ where: { email: userEmail } });
+    if (!employee) return res.status(404).json({ message: 'No employee record linked to your account' });
+
+    await employee.update({ phone: phone ?? employee.phone });
+    const full = await Employee.findByPk(employee.id, { include: includeAssociations });
+    res.json(full);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // GET /employees/:id — all authenticated users
 router.get('/:id', async (req, res) => {
   try {
