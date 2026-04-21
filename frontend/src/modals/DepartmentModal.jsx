@@ -1,17 +1,23 @@
-import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
-function DepartmentModal({ onClose, onSave, loading }) {
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
+const departmentSchema = z.object({
+  name:        z.string().min(1, 'Department name is required'),
+  description: z.string().optional(),
+});
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name.trim()) { setError('Department name is required'); return; }
-    setError('');
-    onSave({ name: name.trim() });
+function DepartmentModal({ onClose, onSave, loading }) {
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(departmentSchema),
+    mode: 'onChange',
+  });
+
+  const onSubmit = (data) => {
+    onSave({ name: data.name.trim(), ...(data.description ? { description: data.description.trim() } : {}) });
   };
 
   return (
@@ -23,20 +29,25 @@ function DepartmentModal({ onClose, onSave, loading }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button variant="primary" onClick={handleSubmit} disabled={loading}>
+          <Button variant="primary" onClick={handleSubmit(onSubmit)} disabled={loading}>
             {loading ? 'Saving…' : 'Save'}
           </Button>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <Input
           label="Department Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Engineering"
-          error={error}
+          error={errors.name?.message}
           autoFocus
+          {...register('name')}
+        />
+        <Input
+          label="Description"
+          placeholder="Optional description"
+          error={errors.description?.message}
+          {...register('description')}
         />
       </form>
     </Modal>

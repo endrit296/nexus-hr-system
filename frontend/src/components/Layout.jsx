@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import RoleBadge from './ui/RoleBadge';
+import Spinner from './ui/Spinner';
 import Sidebar from './Sidebar';
-import DashboardHome from '../pages/DashboardHome';
-import EmployeesPage from '../pages/EmployeesPage';
-import DepartmentsPage from '../pages/DepartmentsPage';
-import OrgChartPage from '../pages/OrgChartPage';
-import UserManagementPage from '../pages/UserManagementPage';
-import ProfilePage from '../pages/ProfilePage';
 import './Layout.css';
+
+const DashboardHome      = lazy(() => import('../pages/DashboardHome'));
+const EmployeesPage      = lazy(() => import('../pages/EmployeesPage'));
+const DepartmentsPage    = lazy(() => import('../pages/DepartmentsPage'));
+const OrgChartPage       = lazy(() => import('../pages/OrgChartPage'));
+const UserManagementPage = lazy(() => import('../pages/UserManagementPage'));
+const ProfilePage        = lazy(() => import('../pages/ProfilePage'));
 
 const pageTitles = {
   dashboard:   'Dashboard',
@@ -51,7 +53,9 @@ function Layout({ user, onLogout }) {
             <button onClick={onLogout} className="topbar-logout">Sign out</button>
           </div>
         </header>
-        <main className="page-content">{renderPage()}</main>
+        <main className="page-content">
+          <Suspense fallback={<Spinner />}>{renderPage()}</Suspense>
+        </main>
       </div>
     </div>
   );
