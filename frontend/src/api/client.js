@@ -1,4 +1,5 @@
 import axios from 'axios';
+import useAuthStore from '../store/useAuthStore';
 
 // Dev: http://localhost:8080 (API Gateway directly)
 // Docker: http://localhost (Nginx load balancer on port 80)
@@ -44,8 +45,8 @@ client.interceptors.response.use(
           refreshToken,
         });
 
-        // Store the new access token and retry
-        localStorage.setItem('token', data.token);
+        // Sync new token to Zustand store (also updates localStorage via setToken)
+        useAuthStore.getState().setToken(data.token);
         original.headers.Authorization = `Bearer ${data.token}`;
         return client(original);
       } catch {

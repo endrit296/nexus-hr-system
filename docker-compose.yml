@@ -59,7 +59,7 @@ services:
       - '3001'
     environment:
       - MONGO_URI=mongodb://mongo:27017/nexus_auth
-      - JWT_SECRET=nexus_jwt_secret_change_in_production
+      - JWT_SECRET=${JWT_SECRET:-nexus_jwt_secret_change_in_production}  # override via .env in production
       - PORT=3001
     depends_on:
       - mongo
@@ -75,7 +75,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=nexus_hr
       - DB_USER=postgres
-      - DB_PASS=password
+      - DB_PASS=${DB_PASS:-password}  # override via .env in production
       - PORT=3002
       - REDIS_URL=redis://redis:6379
     depends_on:
@@ -106,7 +106,7 @@ services:
     environment:
       - POSTGRES_DB=nexus_hr
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}  # override via .env in production
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped

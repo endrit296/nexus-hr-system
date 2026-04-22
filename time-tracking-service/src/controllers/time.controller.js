@@ -4,8 +4,16 @@ exports.processSalary = async (req, res) => {
     try {
         const { employeeName, role, hourlyRate, hoursWorked } = req.body;
 
-        const grossSalary = hourlyRate * hoursWorked;
-        const taxAmount = grossSalary * 0.10; 
+        if (!employeeName || typeof employeeName !== 'string' || !employeeName.trim()) {
+            return res.status(400).json({ status: 'Error', message: 'employeeName is required' });
+        }
+        const rate  = parseFloat(hourlyRate);
+        const hours = parseFloat(hoursWorked);
+        if (!isFinite(rate)  || rate  <= 0) return res.status(400).json({ status: 'Error', message: 'hourlyRate must be a positive number' });
+        if (!isFinite(hours) || hours <= 0) return res.status(400).json({ status: 'Error', message: 'hoursWorked must be a positive number' });
+
+        const grossSalary = rate * hours;
+        const taxAmount = grossSalary * 0.10;
         const netSalary = grossSalary - taxAmount;
 
         res.status(200).json({
@@ -19,8 +27,8 @@ exports.processSalary = async (req, res) => {
                 position: role || "Staff Member"
             },
             financial_summary: {
-                hours_logged: hoursWorked + " hrs",
-                rate_per_hour: hourlyRate + " €",
+                hours_logged: hours + " hrs",
+                rate_per_hour: rate + " €",
                 gross_total: grossSalary.toFixed(2) + " €",
                 deductions: taxAmount.toFixed(2) + " € (Tax 10%)",
                 final_net_salary: netSalary.toFixed(2) + " €"

@@ -21,7 +21,8 @@ const useAuthStore = create(
         set({ user: null, token: null, refreshToken: null });
       },
 
-      setUser: (user) => set({ user }),
+      setUser:  (user)  => set({ user }),
+      setToken: (token) => { localStorage.setItem('token', token); set({ token }); },
     }),
     {
       name:    'nexus_auth',
