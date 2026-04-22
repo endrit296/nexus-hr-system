@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import client from '../api/client';
 import { showSuccess, showError, showInfo } from '../utils/toast';
 
 function PayrollPage({ user }) {
@@ -17,18 +18,13 @@ function PayrollPage({ user }) {
   const calculate = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3005/api/payroll/calculate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employeeName: user?.username || 'Employee',
-          role: 'Software Developer',
-          hourlyRate: 15,
-          hoursWorked: totalHours,
-        }),
+      const { data } = await client.post('/api/v1/payroll/calculate', {
+        employeeName: user?.username || 'Employee',
+        role: 'Software Developer',
+        hourlyRate: 15,
+        hoursWorked: totalHours,
       });
-      if (!res.ok) throw new Error('Server error');
-      setReport(await res.json());
+      setReport(data);
       showSuccess('Payroll report generated successfully!');
     } catch {
       showError('Failed to calculate payroll. Please try again.');

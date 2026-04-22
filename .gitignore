@@ -6,3 +6,8 @@ auth-service/node_modules/
 employee-service/node_modules/
 api-gateway/node_modules/
 frontend/node_modules/
+time-tracking-service/node_modules/
+auth-service/logs/
+employee-service/logs/
+api-gateway/logs/
+time-tracking-service/logs/

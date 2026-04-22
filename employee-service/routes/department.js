@@ -2,17 +2,30 @@ const express    = require('express');
 const Joi        = require('joi');
 const Department = require('../models/Department');
 const Employee   = require('../models/Employee');
+const cache      = require('../cache');
 const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+const BASE = process.env.GATEWAY_URL || 'http://localhost:8080';
+const CACHE_KEY = 'departments:all';
+
+const deptLinks = (d) => ({
+  self:       { href: `${BASE}/api/v1/departments/${d.id}`, method: 'GET'    },
+  delete:     { href: `${BASE}/api/v1/departments/${d.id}`, method: 'DELETE' },
+  collection: { href: `${BASE}/api/v1/departments`,         method: 'GET'    },
+});
 
 const departmentSchema = Joi.object({
   name: Joi.string().trim().required(),
 });
 
-// GET /departments — all authenticated users
+// GET /departments
 router.get('/', async (req, res) => {
   try {
+    const cached = await cache.get(CACHE_KEY);
+    if (cached) return res.json(cached);
+
     const departments = await Department.findAll({ order: [['name', 'ASC']] });
     const employees   = await Employee.findAll({ attributes: ['departmentId'] });
 
@@ -21,8 +34,16 @@ router.get('/', async (req, res) => {
       if (e.departmentId) countMap[e.departmentId] = (countMap[e.departmentId] || 0) + 1;
     });
 
-    const result = departments.map((d) => ({ ...d.toJSON(), employeeCount: countMap[d.id] || 0 }));
-    res.json({ status: 'ok', departments: result });
+    const body = {
+      status: 'ok',
+      departments: departments.map((d) => ({
+        ...d.toJSON(),
+        employeeCount: countMap[d.id] || 0,
+        _links: deptLinks(d),
+      })),
+    };
+    await cache.set(CACHE_KEY, body, 30);
+    res.json(body);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -35,7 +56,8 @@ router.post('/', requireRole('admin'), async (req, res) => {
 
   try {
     const dept = await Department.create(value);
-    res.status(201).json(dept);
+    await cache.del(CACHE_KEY);
+    res.status(201).json({ ...dept.toJSON(), _links: deptLinks(dept) });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ message: 'Department already exists' });
@@ -58,6 +80,7 @@ router.delete('/:id', requireRole('admin'), async (req, res) => {
     }
 
     await dept.destroy();
+    await cache.del(CACHE_KEY);
     res.json({ message: 'Department deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

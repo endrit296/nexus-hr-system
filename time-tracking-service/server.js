@@ -1,26 +1,18 @@
-const express = require('express');
-const cors = require('cors');
+const express    = require('express');
+const cors       = require('cors');
+const morgan     = require('morgan');
 require('dotenv').config();
 
 const timeRoutes = require('./src/routes/time.routes');
+const logger     = require('./src/logger');
 
-const app = express();
+const app  = express();
+const PORT = process.env.PORT || 3005;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
-// Routes - Adresa kryesore e sahatit dhe rrogave
 app.use('/api/payroll', timeRoutes);
 
-const PORT = 3005;
-
-app.listen(PORT, () => {
-    console.log("\n" + "=".repeat(45));
-    console.log("💎 NEXUS HR SYSTEM - PAYROLL MODULE");
-    console.log("=".repeat(45));
-    console.log(`🚀 STATUS:  Running Successfully`);
-    console.log(`📡 PORT:    ${PORT}`);
-    console.log(`🔗 URL:     http://localhost:${PORT}/api/payroll`);
-    console.log("=".repeat(45) + "\n");
-});
+app.listen(PORT, () => logger.info(`Time-Tracking Service running on http://localhost:${PORT}`));

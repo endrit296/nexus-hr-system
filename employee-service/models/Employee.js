@@ -10,6 +10,14 @@ const Employee = sequelize.define('Employee', {
   status:     { type: DataTypes.ENUM('active', 'inactive', 'on_leave'), defaultValue: 'active' },
   hireDate:   { type: DataTypes.DATEONLY },
   salary:     { type: DataTypes.DECIMAL(10, 2) },
+}, {
+  indexes: [
+    { fields: ['departmentId'] },
+    { fields: ['managerId'] },
+    { fields: ['status'] },
+    { fields: ['hireDate'] },
+    { fields: ['lastName', 'firstName'] },
+  ],
 });
 
 module.exports = Employee;

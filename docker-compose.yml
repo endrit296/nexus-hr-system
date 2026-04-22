@@ -77,8 +77,17 @@ services:
       - DB_USER=postgres
       - DB_PASS=password
       - PORT=3002
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - postgres
+      - redis
+    restart: unless-stopped
+
+  # ── Cache ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    expose:
+      - '6379'
     restart: unless-stopped
 
   # ── Databases ────────────────────────────────────────────────────────────────

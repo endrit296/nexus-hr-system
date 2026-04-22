@@ -1,31 +1,34 @@
-const express = require('express');
+const express    = require('express');
+const morgan     = require('morgan');
 const { connectDB, sequelize } = require('./config/database');
 const Department = require('./models/Department');
-const Employee = require('./models/Employee');
-const employeeRoutes = require('./routes/employee');
+const Employee   = require('./models/Employee');
+const employeeRoutes   = require('./routes/employee');
 const departmentRoutes = require('./routes/department');
+const logger     = require('./logger');
 
-const app = express();
-const PORT = 3002;
+const app  = express();
+const PORT = process.env.PORT || 3002;
 
 app.use(express.json());
+app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
-// Associations
-Department.hasMany(Employee, { foreignKey: 'departmentId', as: 'employees' });
-Employee.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
-Employee.belongsTo(Employee, { foreignKey: 'managerId', as: 'manager' });
-Employee.hasMany(Employee, { foreignKey: 'managerId', as: 'subordinates' });
+// Associations — onDelete: 'SET NULL' so removing a dept/manager nullifies FKs rather than erroring
+Department.hasMany(Employee, { foreignKey: 'departmentId', as: 'employees',    onDelete: 'SET NULL', hooks: true });
+Employee.belongsTo(Department, { foreignKey: 'departmentId', as: 'department', onDelete: 'SET NULL', hooks: true });
+Employee.belongsTo(Employee, { foreignKey: 'managerId', as: 'manager',          onDelete: 'SET NULL', hooks: true });
+Employee.hasMany(Employee, { foreignKey: 'managerId', as: 'subordinates',       onDelete: 'SET NULL', hooks: true });
 
 app.use('/employees', employeeRoutes);
 app.use('/departments', departmentRoutes);
 
-app.get('/', (req, res) => res.send('Employee Service Online'));
+app.get('/', (_req, res) => res.send('Employee Service Online'));
 
 const startServer = async () => {
   await connectDB();
   await sequelize.sync({ alter: true });
-  console.log('Tables synced');
-  app.listen(PORT, () => console.log(`Employee Service running on http://localhost:${PORT}`));
+  logger.info('Tables synced');
+  app.listen(PORT, () => logger.info(`Employee Service running on http://localhost:${PORT}`));
 };
 
 startServer();

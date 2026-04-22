@@ -2,9 +2,20 @@ const express    = require('express');
 const Joi        = require('joi');
 const Employee   = require('../models/Employee');
 const Department = require('../models/Department');
+const cache      = require('../cache');
 const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+const BASE = process.env.GATEWAY_URL || 'http://localhost:8080';
+const CACHE_KEY = 'employees:all';
+
+const employeeLinks = (e) => ({
+  self:       { href: `${BASE}/api/v1/employees/${e.id}`, method: 'GET'    },
+  update:     { href: `${BASE}/api/v1/employees/${e.id}`, method: 'PUT'    },
+  delete:     { href: `${BASE}/api/v1/employees/${e.id}`, method: 'DELETE' },
+  collection: { href: `${BASE}/api/v1/employees`,         method: 'GET'    },
+});
 
 const employeeSchema = Joi.object({
   firstName:    Joi.string().trim().required(),
@@ -29,20 +40,28 @@ const includeAssociations = [
   { model: Employee,   as: 'manager',    attributes: ['id', 'firstName', 'lastName'] },
 ];
 
-// GET /employees — all authenticated users can browse the directory
+// GET /employees
 router.get('/', async (req, res) => {
   try {
+    const cached = await cache.get(CACHE_KEY);
+    if (cached) return res.json(cached);
+
     const employees = await Employee.findAll({
       include: includeAssociations,
       order: [['createdAt', 'DESC']],
     });
-    res.json({ status: 'ok', employees });
+    const body = {
+      status: 'ok',
+      employees: employees.map((e) => ({ ...e.toJSON(), _links: employeeLinks(e) })),
+    };
+    await cache.set(CACHE_KEY, body, 30);
+    res.json(body);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// GET /employees/me — returns the current user's employee record + subordinates
+// GET /employees/me
 router.get('/me', async (req, res) => {
   const userEmail = req.headers['x-user-email'];
   if (!userEmail) return res.status(401).json({ message: 'Authentication required' });
@@ -61,13 +80,13 @@ router.get('/me', async (req, res) => {
       ],
     });
     if (!employee) return res.status(404).json({ message: 'No employee record linked to your account' });
-    res.json(employee);
+    res.json({ ...employee.toJSON(), _links: employeeLinks(employee) });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// PUT /employees/me — any authenticated user can update their own phone
+// PUT /employees/me
 router.put('/me', async (req, res) => {
   const userEmail = req.headers['x-user-email'];
   if (!userEmail) return res.status(401).json({ message: 'Authentication required' });
@@ -79,19 +98,20 @@ router.put('/me', async (req, res) => {
     if (!employee) return res.status(404).json({ message: 'No employee record linked to your account' });
 
     await employee.update({ phone: phone ?? employee.phone });
+    await cache.del(CACHE_KEY);
     const full = await Employee.findByPk(employee.id, { include: includeAssociations });
-    res.json(full);
+    res.json({ ...full.toJSON(), _links: employeeLinks(full) });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// GET /employees/:id — all authenticated users
+// GET /employees/:id
 router.get('/:id', async (req, res) => {
   try {
     const employee = await Employee.findByPk(req.params.id, { include: includeAssociations });
     if (!employee) return res.status(404).json({ message: 'Employee not found' });
-    res.json(employee);
+    res.json({ ...employee.toJSON(), _links: employeeLinks(employee) });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -104,8 +124,9 @@ router.post('/', requireRole('admin'), async (req, res) => {
 
   try {
     const employee = await Employee.create(value);
+    await cache.del(CACHE_KEY);
     const full = await Employee.findByPk(employee.id, { include: includeAssociations });
-    res.status(201).json(full);
+    res.status(201).json({ ...full.toJSON(), _links: employeeLinks(full) });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ message: 'Email already in use' });
@@ -115,8 +136,6 @@ router.post('/', requireRole('admin'), async (req, res) => {
 });
 
 // PUT /employees/:id
-//   admin  → full update
-//   manager → only their direct subordinates; salary, departmentId, managerId are stripped
 router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
   const role      = req.headers['x-user-role'];
   const userEmail = req.headers['x-user-email'];
@@ -129,27 +148,22 @@ router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
     if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
     if (role === 'manager') {
-      // Resolve the manager's own employee record by matching their auth email
       const managerRecord = await Employee.findOne({ where: { email: userEmail } });
       if (!managerRecord) {
-        return res.status(403).json({
-          message: 'Your account is not linked to an employee record',
-        });
+        return res.status(403).json({ message: 'Your account is not linked to an employee record' });
       }
       if (employee.managerId !== managerRecord.id) {
-        return res.status(403).json({
-          message: 'You can only edit your direct subordinates',
-        });
+        return res.status(403).json({ message: 'You can only edit your direct subordinates' });
       }
-      // Managers cannot change compensation or reporting structure
       delete value.salary;
       delete value.departmentId;
       delete value.managerId;
     }
 
     await employee.update(value);
+    await cache.del(CACHE_KEY);
     const full = await Employee.findByPk(employee.id, { include: includeAssociations });
-    res.json(full);
+    res.json({ ...full.toJSON(), _links: employeeLinks(full) });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ message: 'Email already in use' });
@@ -164,6 +178,7 @@ router.delete('/:id', requireRole('admin'), async (req, res) => {
     const employee = await Employee.findByPk(req.params.id);
     if (!employee) return res.status(404).json({ message: 'Employee not found' });
     await employee.destroy();
+    await cache.del(CACHE_KEY);
     res.json({ message: 'Employee deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
