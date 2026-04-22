@@ -4,20 +4,26 @@ import EmployeeModal from '../modals/EmployeeModal';
 import ConfirmModal from '../modals/ConfirmModal';
 import Avatar from '../components/ui/Avatar';
 import StatusBadge from '../components/ui/StatusBadge';
+import DataTable from '../components/ui/DataTable';
+import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
+import { showSuccess, showError } from '../utils/toast';
+
+const SearchIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+);
 
 const EditIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-    <path d="m15 5 4 4"/>
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
   </svg>
 );
 
 const DeleteIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 6h18"/>
-    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
   </svg>
 );
 
@@ -75,6 +81,7 @@ function EmployeesPage({ user }) {
       .then(async ({ data: emp }) => {
         closeModal();
         fetchAll();
+        showSuccess(isNew ? 'Employee added successfully.' : 'Employee updated successfully.');
         if (isNew && emp.email) {
           const defaultPassword = 'Password123';
           const username = `${payload.firstName}${payload.lastName}`
@@ -85,15 +92,19 @@ function EmployeesPage({ user }) {
           } catch { /* 409 = already exists */ }
         }
       })
-      .catch((err) => setModalError(err.response?.data?.message || 'Failed to save employee'))
+      .catch((err) => {
+        const msg = err.response?.data?.message || 'Failed to save employee.';
+        setModalError(msg);
+        showError(msg);
+      })
       .finally(() => setSaving(false));
   };
 
   const handleDelete = () => {
     setDeleting(true);
     client.delete(`/api/employees/${confirmId}`)
-      .then(() => { setConfirmId(null); fetchAll(); })
-      .catch(() => {})
+      .then(() => { setConfirmId(null); fetchAll(); showSuccess('Employee deleted.'); })
+      .catch(() => showError('Failed to delete employee.'))
       .finally(() => setDeleting(false));
   };
 
@@ -103,120 +114,96 @@ function EmployeesPage({ user }) {
   const canAdd    = role === 'admin';
   const canEdit   = role === 'admin' || role === 'manager';
   const canDelete = role === 'admin';
-  const hasActions = canEdit || canDelete;
+
+  const columns = [
+    {
+      key: 'employee',
+      label: 'Employee',
+      render: (emp) => (
+        <div className="flex items-center gap-3 min-w-[200px]">
+          <Avatar firstName={emp.firstName} lastName={emp.lastName} size="sm" />
+          <div>
+            <div className="font-semibold text-slate-900 text-sm">{emp.firstName} {emp.lastName}</div>
+            <div className="text-xs text-slate-400 mt-0.5">{emp.position || 'No position'}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      render: (emp) => <span className="text-sm text-slate-600">{emp.email}</span>,
+    },
+    {
+      key: 'department',
+      label: 'Department',
+      render: (emp) => emp.department?.name || '—',
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (emp) => <StatusBadge status={emp.status} />,
+    },
+    ...(canEdit || canDelete ? [{
+      key: 'actions',
+      label: '',
+      render: (emp) => (
+        <div className="flex gap-1">
+          {canEdit && (
+            <Button variant="ghost" size="sm" onClick={() => openEdit(emp)} title="Edit">
+              <EditIcon />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmId(emp.id)}
+              title="Delete"
+              className="hover:text-red-600 hover:bg-red-50"
+            >
+              <DeleteIcon />
+            </Button>
+          )}
+        </div>
+      ),
+    }] : []),
+  ];
 
   return (
     <>
       {/* Page header */}
-      <div className="flex items-center justify-between mb-5">
-        <span className="text-sm font-medium text-slate-500">
-          {filtered.length} {filtered.length !== 1 ? 'employees' : 'employee'}{search ? ' found' : ''}
-        </span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900">Employees</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {filtered.length} {filtered.length !== 1 ? 'employees' : 'employee'}{search ? ' found' : ''}
+          </p>
+        </div>
         {canAdd && (
-          <button
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
-            onClick={openAdd}
-          >
-            + Add Employee
-          </button>
+          <Button variant="primary" onClick={openAdd}>+ Add Employee</Button>
         )}
       </div>
 
       {/* Search bar */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="relative mb-5">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <SearchIcon />
+        </span>
         <input
-          className="w-full max-w-md h-10 px-4 rounded-lg border border-slate-200 bg-white text-sm placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+          className="w-full sm:max-w-sm h-[42px] pl-10 pr-4 rounded-lg border-[1.5px] border-slate-200 bg-white text-base placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:shadow-focus transition-all duration-200"
           placeholder="Search by name, email, position, department…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        {search && (
-          <button
-            className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
-            onClick={() => setSearch('')}
-          >
-            Clear
-          </button>
-        )}
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400">Position</th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400">Department</th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400">Manager</th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400">Hire Date</th>
-                {hasActions && (
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400">Actions</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6 + (hasActions ? 1 : 0)}
-                    className="px-4 py-16 text-center text-slate-400 text-sm"
-                  >
-                    {search ? 'No employees match your search.' : 'No employees yet. Add one to get started.'}
-                  </td>
-                </tr>
-              ) : filtered.map((emp) => (
-                <tr key={emp.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-3 text-sm text-slate-700 min-w-[220px]">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar firstName={emp.firstName} lastName={emp.lastName} size="sm" />
-                      <div>
-                        <div className="font-semibold text-slate-900">{emp.firstName} {emp.lastName}</div>
-                        <span className="block text-xs text-slate-400 mt-0.5">{emp.email}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{emp.position || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{emp.department?.name || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    <StatusBadge status={emp.status} />
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{emp.hireDate || '—'}</td>
-                  {hasActions && (
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      <div className="flex items-center gap-1">
-                        {canEdit && (
-                          <button
-                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Edit"
-                            onClick={() => openEdit(emp)}
-                          >
-                            <EditIcon />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            title="Delete"
-                            onClick={() => setConfirmId(emp.id)}
-                          >
-                            <DeleteIcon />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filtered}
+        emptyMessage={search ? 'No employees match your search.' : 'No employees yet. Add one to get started.'}
+      />
 
       {/* Modals */}
       {modalEmployee !== undefined && (
@@ -230,7 +217,7 @@ function EmployeesPage({ user }) {
       {confirmId && (
         <ConfirmModal
           title="Delete Employee"
-          message="Are you sure you want to delete this employee? This cannot be undone."
+          message="Are you sure you want to delete this employee? This action cannot be undone."
           onConfirm={handleDelete} onCancel={() => setConfirmId(null)} loading={deleting}
         />
       )}
@@ -249,10 +236,8 @@ function EmployeesPage({ user }) {
             </div>
             <button
               onClick={() => setNewCredentials(null)}
-              className="text-slate-500 hover:text-slate-300 text-base leading-none flex-shrink-0"
-            >
-              ✕
-            </button>
+              className="text-slate-500 hover:text-slate-300 leading-none flex-shrink-0"
+            >✕</button>
           </div>
         </div>
       )}

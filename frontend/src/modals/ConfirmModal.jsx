@@ -17,7 +17,10 @@ function ConfirmModal({ title, message, onConfirm, onCancel, loading }) {
         </>
       }
     >
-      <p className="text-slate-600 text-sm leading-relaxed">{message}</p>
+      <div className="flex flex-col items-center text-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-2xl">⚠️</div>
+        <p className="text-slate-600 text-base leading-relaxed">{message}</p>
+      </div>
     </Modal>
   );
 }

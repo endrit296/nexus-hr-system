@@ -19,7 +19,7 @@ const employeeSchema = z.object({
 });
 
 const labelCls  = 'block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5';
-const selectCls = 'w-full h-[46px] px-3 rounded border-[1.5px] bg-slate-50 text-sm text-slate-900 transition-all duration-200 focus:outline-none focus:bg-white';
+const selectCls = 'w-full h-[46px] px-3 rounded border-[1.5px] bg-slate-50 text-base text-slate-900 transition-all duration-200 focus:outline-none focus:bg-white focus:shadow-focus';
 
 function SelectField({ label, error, children, ...props }) {
   return (
@@ -89,7 +89,7 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
         </>
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 sm:grid-cols-2 gap-4" noValidate>
         <Input label="First Name *" placeholder="Jane" error={errors.firstName?.message} {...register('firstName')} />
         <Input label="Last Name *"  placeholder="Doe"  error={errors.lastName?.message}  {...register('lastName')} />
         <Input label="Email *" type="email" placeholder="jane@company.com" error={errors.email?.message} {...register('email')} />
