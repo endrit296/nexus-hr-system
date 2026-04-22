@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast'; // Ti po përdor këtë librari
 import Login from './components/Login';
 import Layout from './components/Layout';
 
@@ -39,6 +39,7 @@ function App() {
 
   return (
     <>
+      {/* Kjo është "mbajtësja" e njoftimeve që ke aktualisht */}
       <Toaster
         position="top-right"
         toastOptions={{
@@ -50,20 +51,32 @@ function App() {
             fontSize: '13px',
             fontFamily: '"DM Sans", sans-serif',
           },
+          // Shtohet kjo për t'u siguruar që sukseset/gabimet duken mirë
+          success: {
+            duration: 3000,
+            theme: {
+              primary: '#27ae60',
+            },
+          },
+          error: {
+            duration: 4000,
+            theme: {
+              primary: '#e74c3c',
+            },
+          },
         }}
       />
-      <Routes>
-      {/* Nëse nuk është i loguar, shfaq vetëm Login */}
-      <Route 
-        path="/login" 
-        element={!user ? <Login onLogin={handleLogin} /> : <Navigate replace to="/dashboard" />} 
-      />
       
-      {/* Nëse është i loguar, shfaq Layout-in që mban faqet e tjera */}
-      <Route 
-        path="/*" 
-        element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />} 
-      />
+      <Routes>
+        <Route 
+          path="/login" 
+          element={!user ? <Login onLogin={handleLogin} /> : <Navigate replace to="/dashboard" />} 
+        />
+        
+        <Route 
+          path="/*" 
+          element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />} 
+        />
       </Routes>
     </>
   );

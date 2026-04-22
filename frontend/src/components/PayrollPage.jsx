@@ -1,19 +1,28 @@
 import React, { useState, useEffect } from 'react';
+// HAPI 1: Importimi i njoftimeve nga folderi utils
+import * as toast from '../utils/toast';
 
 const PayrollPage = ({ user }) => {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [workStats, setWorkStats] = useState({ totalHours: 142, status: 'Active Now' });
   
-  // SHTESA: State për butonin Clock In/Out
   const [isClockedIn, setIsClockedIn] = useState(true);
 
   const handleClockToggle = () => {
-    setIsClockedIn(!isClockedIn);
+    const newStatus = !isClockedIn;
+    setIsClockedIn(newStatus);
     setWorkStats(prev => ({
       ...prev,
-      status: !isClockedIn ? 'Active Now' : 'Offline'
+      status: newStatus ? 'Active Now' : 'Offline'
     }));
+
+    // HAPI 2: Njoftimi për Clock In / Clock Out
+    if (newStatus) {
+      toast.success("U regjistruat me sukses! Punë të mbarë.");
+    } else {
+      toast.info("Dole nga sistemi. Pushim të këndshëm!");
+    }
   };
 
   useEffect(() => {
@@ -33,10 +42,19 @@ const PayrollPage = ({ user }) => {
           hoursWorked: workStats.totalHours 
         })
       });
+
+      if (!response.ok) throw new Error("Gabim në server");
+
       const data = await response.json();
       setReport(data);
+
+      // HAPI 3: Njoftimi për suksesin e llogaritjes
+      toast.success("Raporti i rrogës u gjenerua me sukses!");
+
     } catch (error) {
       console.error("Gabim gjatë llogaritjes:", error);
+      // HAPI 4: Njoftimi në rast gabimi
+      toast.error("Dështoi llogaritja e rrogës. Provo përsëri!");
     } finally {
       setLoading(false);
     }
@@ -46,7 +64,6 @@ const PayrollPage = ({ user }) => {
     <div style={{ padding: '40px', backgroundColor: '#f4f7f6', minHeight: '100vh', textAlign: 'center' }}>
       <h1 style={{ color: '#1a237e' }}>Sistemi i Rrogave - Nexus HR</h1>
 
-      {/* SHTESA: Butoni Clock In/Out që nuk prish pjesën tjetër */}
       <div style={{ marginBottom: '30px' }}>
         <button 
           onClick={handleClockToggle}
@@ -110,7 +127,7 @@ const PayrollPage = ({ user }) => {
                 <span>Paga Bruto:</span>
                 <span>{report.financial_summary.gross_total}</span>
               </div>
-              <div style={{ ...styles.row, color: '#e74c3c' }}>
+              <div style={styles.row, { color: '#e74c3c' }}>
                 <span>Taksa (Deductions):</span>
                 <span>{report.financial_summary.deductions}</span>
               </div>

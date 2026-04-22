@@ -1,5 +1,8 @@
-import toast from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 
-export const showSuccess = (message) => toast.success(message);
-export const showError   = (message) => toast.error(message);
-export const showInfo    = (message) => toast(message);
+export const success = (msg) => toast.success(msg);
+export const error = (msg) => toast.error(msg);
+export const info = (msg) => toast(msg);
+
+// Shto këtë rresht që DashboardHome të mos nxjerrë gabim:
+export const showError = (msg) => toast.error(msg);
