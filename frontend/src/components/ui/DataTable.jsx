@@ -23,7 +23,7 @@ function DataTable({ columns = [], data = [], loading = false, emptyMessage = 'N
               <tr key={row.id ?? rowIdx} className="hover:bg-slate-50 transition-colors duration-100">
                 {columns.map((col) => (
                   <td key={col.key} className="px-4 py-3 text-base text-slate-900 border-t border-slate-100">
-                    {col.render ? col.render(row) : row[col.key] ?? '—'}
+                    {col.render ? col.render(row, rowIdx) : row[col.key] ?? '—'}
                   </td>
                 ))}
               </tr>

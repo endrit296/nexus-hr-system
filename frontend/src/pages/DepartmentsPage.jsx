@@ -1,9 +1,13 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import client from '../api/client';
 import DepartmentModal from '../modals/DepartmentModal';
 import ConfirmModal from '../modals/ConfirmModal';
+import DataTable from '../components/ui/DataTable';
+import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
 import { showError } from '../utils/toast';
+
+const COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'];
 
 function DepartmentsPage() {
   const [departments, setDepartments] = useState([]);
@@ -45,59 +49,67 @@ function DepartmentsPage() {
   };
 
   if (loading) return <Spinner />;
-  if (error)   return <p className="error-msg">{error}</p>;
+  if (error)   return <p className="py-10 text-center text-red-500 text-sm">{error}</p>;
 
-  const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'];
+  const columns = [
+    {
+      key: 'name',
+      label: 'Department Name',
+      render: (dept, i) => (
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-lg ${COLORS[i % COLORS.length]} flex items-center justify-center text-white text-base shadow-sm flex-shrink-0`}>
+            🏢
+          </div>
+          <span className="font-semibold text-slate-900">{dept.name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'employeeCount',
+      label: 'Team Size',
+      render: (dept) => (
+        <span className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 px-3 py-1 rounded-full text-xs font-bold">
+          👥 {dept.employeeCount} {dept.employeeCount === 1 ? 'Employee' : 'Employees'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: '',
+      render: (dept) => (
+        <div className="flex justify-end">
+          <button
+            className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Delete"
+            onClick={() => { setDeleteError(''); setConfirmId(dept.id); }}
+          >
+            🗑️
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <>
-      <div className="page-header">
-        <h3>{departments.length} department{departments.length !== 1 ? 's' : ''}</h3>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Department</button>
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900">Departments</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {departments.length} {departments.length !== 1 ? 'departments' : 'department'}
+          </p>
+        </div>
+        <Button variant="primary" onClick={() => setShowAdd(true)}>+ Add Department</Button>
       </div>
 
-      <div className="section-card">
-        {departments.length === 0 ? (
-          <p className="table-empty">No departments yet. Add one to get started.</p>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Department Name</th>
-                <th>Team Size</th>
-                <th style={{ width: 80, textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {departments.map((dept, i) => (
-                <tr key={dept.id}>
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg ${colors[i % colors.length]} flex items-center justify-center text-white text-base shadow-sm flex-shrink-0`}>
-                        🏢
-                      </div>
-                      <span className="font-semibold text-slate-900">{dept.name}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 px-3 py-1 rounded-full text-xs font-bold">
-                      👥 {dept.employeeCount} Employees
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="btn-icon text-red-400 hover:bg-red-50"
-                      title="Delete"
-                      onClick={() => { setDeleteError(''); setConfirmId(dept.id); }}
-                    >
-                      🗑️
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {/* Table card */}
+      <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
+        <DataTable
+          columns={columns}
+          data={departments}
+          emptyMessage="No departments yet. Add one to get started."
+        />
       </div>
 
       {showAdd && (
