@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { key: 'employees',   icon: '👥', label: 'Employees',        roles: ['employee', 'manager', 'admin'] },
   { key: 'departments', icon: '🏢', label: 'Departments',      roles: ['employee', 'manager', 'admin'] },
   { key: 'orgchart',    icon: '🌐', label: 'Org Chart',        roles: ['employee', 'manager', 'admin'] },
+  { key: 'payroll',     icon: '💰', label: 'Payroll',          roles: ['employee', 'manager', 'admin'] }, // SHTOJMË KËTË RRESHT
   { key: 'users',       icon: '🔑', label: 'User Management',  roles: ['admin'] },
 ];
 

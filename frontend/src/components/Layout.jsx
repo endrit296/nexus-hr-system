@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import RoleBadge from './ui/RoleBadge';
 import Spinner from './ui/Spinner';
 import Sidebar from './Sidebar';
+import PayrollPage from './PayrollPage'; // 1. Importojmë modulin e ri
 import './Layout.css';
 
 const DashboardHome      = lazy(() => import('../pages/DashboardHome'));
@@ -18,6 +19,7 @@ const pageTitles = {
   orgchart:    'Organization Chart',
   users:       'User Management',
   profile:     'My Profile',
+  payroll:     'Payroll Module', // 2. Shtojmë titullin për Payroll
 };
 
 function Layout({ user, onLogout }) {
@@ -31,12 +33,14 @@ function Layout({ user, onLogout }) {
       case 'orgchart':    return <OrgChartPage />;
       case 'users':       return user.role === 'admin' ? <UserManagementPage currentUserId={user.id} /> : <DashboardHome />;
       case 'profile':     return <ProfilePage user={user} />;
+      case 'payroll':     return <PayrollPage />; // 3. Shtojmë rastin për Payroll
       default:            return <DashboardHome />;
     }
   };
 
   return (
     <div className="layout">
+      {/* 4. Kalojmë funksionet te Sidebar që ta kuptojë klikimin e ri */}
       <Sidebar activePage={activePage} onNavigate={setActivePage} userRole={user.role} user={user} />
       <div className="layout-main">
         <header className="topbar">

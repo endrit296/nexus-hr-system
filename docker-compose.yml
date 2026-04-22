@@ -30,9 +30,26 @@ services:
       - NODE_ENV=production
       - AUTH_SERVICE_URL=http://auth-service:3001
       - EMPLOYEE_SERVICE_URL=http://employee-service:3002
+      - PAYROLL_SERVICE_URL=http://time-tracking-service:3005
     depends_on:
       - auth-service
       - employee-service
+      - time-tracking-service
+    restart: unless-stopped
+
+  # ── Time Tracking & Payroll Service (MODULI I RI) ──────────────────────────
+  time-tracking-service:
+    build: ./time-tracking-service
+    container_name: time-tracking-service
+    expose:
+      - '3005'
+    ports:
+      - '3005:3005'
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/nexus_payroll
+      - PORT=3005
+    depends_on:
+      - mongo
     restart: unless-stopped
 
   # ── Auth Service (NoSQL — MongoDB) ───────────────────────────────────────────
