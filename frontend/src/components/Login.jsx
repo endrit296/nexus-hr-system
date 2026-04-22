@@ -4,17 +4,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import client from '../api/client';
 import Input from './ui/Input';
-import './Login.css';
+import Button from './ui/Button';
 
 const loginSchema = z.object({
-  email:    z.string().email('Please enter a valid email address'),
+  email:    z.email({ error: 'Please enter a valid email address' }),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 const registerSchema = z.object({
   firstName:       z.string().min(1, 'First name is required'),
   lastName:        z.string().min(1, 'Last name is required'),
-  email:           z.string().email('Please enter a valid email address'),
+  email:           z.email({ error: 'Please enter a valid email address' }),
   password:        z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -22,26 +22,26 @@ const registerSchema = z.object({
   path: ['confirmPassword'],
 });
 
+const FEATURES = [
+  { icon: '👥', text: 'Employee directory & profiles' },
+  { icon: '🏢', text: 'Department management' },
+  { icon: '📊', text: 'Workforce analytics' },
+  { icon: '🔐', text: 'Role-based access control' },
+];
+
 function Login({ onLogin }) {
-  const [mode, setMode]           = useState('login');
-  const [loading, setLoading]     = useState(false);
+  const [mode, setMode]               = useState('login');
+  const [loading, setLoading]         = useState(false);
   const [serverError, setServerError] = useState('');
 
-  const loginForm = useForm({
-    resolver: zodResolver(loginSchema),
-    mode: 'onChange',
-  });
-
-  const registerForm = useForm({
-    resolver: zodResolver(registerSchema),
-    mode: 'onChange',
-  });
+  const lf = useForm({ resolver: zodResolver(loginSchema),   mode: 'onChange' });
+  const rf = useForm({ resolver: zodResolver(registerSchema), mode: 'onChange' });
 
   const switchMode = (m) => {
     setMode(m);
     setServerError('');
-    loginForm.reset();
-    registerForm.reset();
+    lf.reset();
+    rf.reset();
   };
 
   const onLoginSubmit = async ({ email, password }) => {
@@ -75,42 +75,89 @@ function Login({ onLogin }) {
     }
   };
 
-  const lf = loginForm;
-  const rf = registerForm;
-
   return (
-    <div className="auth-wrapper">
-      <div className="auth-brand">
-        <div className="auth-brand-content">
-          <div className="auth-logo">
-            <span className="auth-logo-icon">N</span>
+    <div className="min-h-screen flex">
+
+      {/* ── Left panel ── */}
+      <div className="hidden lg:flex lg:w-[55%] bg-dark-900 relative overflow-hidden flex-col justify-center px-16">
+        {/* Depth orbs */}
+        <div className="absolute top-[-100px] left-[-100px] w-[500px] h-[500px] rounded-full bg-brand-600/10 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-[-50px] right-[-50px] w-[400px] h-[400px] rounded-full bg-indigo-500/[0.08] blur-3xl pointer-events-none" />
+
+        <div className="relative z-10">
+          <div className="w-12 h-12 bg-brand-600 rounded-lg flex items-center justify-center">
+            <span className="text-xl font-extrabold text-white">N</span>
           </div>
-          <h1 className="auth-brand-name">Nexus HR</h1>
-          <p className="auth-brand-tagline">Modern human resources management for growing teams.</p>
-          <ul className="auth-brand-features">
-            <li>👥 Employee directory &amp; profiles</li>
-            <li>🏢 Department management</li>
-            <li>📊 Workforce analytics</li>
-            <li>🔐 Role-based access control</li>
+          <h1 className="text-2xl font-extrabold text-white mt-4">Nexus HR</h1>
+          <p className="text-base text-slate-400 mt-2 max-w-sm">
+            Modern human resources management for growing teams.
+          </p>
+
+          <ul className="mt-10 space-y-3">
+            {FEATURES.map(({ icon, text }) => (
+              <li key={text} className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded px-4 py-3">
+                <span>{icon}</span>
+                <span className="text-sm text-white/80">{text}</span>
+              </li>
+            ))}
           </ul>
         </div>
       </div>
 
-      <div className="auth-form-panel">
-        <div className="auth-card">
-          <div className="auth-tabs">
-            <button className={`auth-tab ${mode === 'login' ? 'active' : ''}`} onClick={() => switchMode('login')} type="button">Sign in</button>
-            <button className={`auth-tab ${mode === 'register' ? 'active' : ''}`} onClick={() => switchMode('register')} type="button">Register</button>
+      {/* ── Right panel ── */}
+      <div className="w-full lg:w-[45%] bg-white flex items-center justify-center px-6 lg:px-8 py-12">
+        <div className="w-full max-w-[380px]">
+
+          {/* Mobile-only logo */}
+          <div className="flex items-center gap-3 mb-8 lg:hidden">
+            <div className="w-10 h-10 bg-brand-600 rounded-lg flex items-center justify-center">
+              <span className="text-lg font-extrabold text-white">N</span>
+            </div>
+            <span className="text-xl font-extrabold text-slate-900">Nexus HR</span>
           </div>
 
-          <div className="auth-card-body">
-            <h2 className="auth-heading">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
-            <p className="auth-subheading">
-              {mode === 'login' ? 'Sign in to access your dashboard.' : 'Get started with Nexus HR today.'}
-            </p>
+          {/* Tab switcher */}
+          <div className="flex gap-8 mb-8">
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              className={`pb-2 text-sm font-semibold transition-colors ${
+                mode === 'login'
+                  ? 'text-brand-600 border-b-2 border-brand-600'
+                  : 'text-slate-400 hover:text-slate-600 cursor-pointer'
+              }`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('register')}
+              className={`pb-2 text-sm font-semibold transition-colors ${
+                mode === 'register'
+                  ? 'text-brand-600 border-b-2 border-brand-600'
+                  : 'text-slate-400 hover:text-slate-600 cursor-pointer'
+              }`}
+            >
+              Register
+            </button>
+          </div>
 
-            {mode === 'login' ? (
-              <form onSubmit={lf.handleSubmit(onLoginSubmit)} className="auth-form" noValidate>
+          <h2 className="text-xl font-bold text-slate-900">
+            {mode === 'login' ? 'Welcome back' : 'Create your account'}
+          </h2>
+          <p className="text-base text-slate-500 mt-1 mb-8">
+            {mode === 'login' ? 'Sign in to access your dashboard.' : 'Get started with Nexus HR today.'}
+          </p>
+
+          {/* ── Login form ── */}
+          {mode === 'login' && (
+            <form onSubmit={lf.handleSubmit(onLoginSubmit)} noValidate>
+              {serverError && (
+                <div className="bg-red-50 border border-red-200 rounded text-sm text-red-600 px-4 py-3 mb-4">
+                  ⚠️ {serverError}
+                </div>
+              )}
+              <div className="space-y-4">
                 <Input
                   label="Email address"
                   type="email"
@@ -125,14 +172,28 @@ function Login({ onLogin }) {
                   error={lf.formState.errors.password?.message}
                   {...lf.register('password')}
                 />
-                {serverError && <p className="auth-error">⚠️ {serverError}</p>}
-                <button type="submit" className="auth-btn" disabled={loading}>
-                  {loading ? 'Signing in…' : 'Sign in'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={rf.handleSubmit(onRegisterSubmit)} className="auth-form" noValidate>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              </div>
+              <Button
+                variant="primary"
+                type="submit"
+                disabled={loading}
+                className="w-full h-[46px] mt-6 uppercase tracking-wide"
+              >
+                {loading ? 'Signing in…' : 'Sign in'}
+              </Button>
+            </form>
+          )}
+
+          {/* ── Register form ── */}
+          {mode === 'register' && (
+            <form onSubmit={rf.handleSubmit(onRegisterSubmit)} noValidate>
+              {serverError && (
+                <div className="bg-red-50 border border-red-200 rounded text-sm text-red-600 px-4 py-3 mb-4">
+                  ⚠️ {serverError}
+                </div>
+              )}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="First Name"
                     placeholder="Jane"
@@ -167,22 +228,31 @@ function Login({ onLogin }) {
                   error={rf.formState.errors.confirmPassword?.message}
                   {...rf.register('confirmPassword')}
                 />
-                {serverError && <p className="auth-error">⚠️ {serverError}</p>}
-                <button type="submit" className="auth-btn" disabled={loading}>
-                  {loading ? 'Creating account…' : 'Create account'}
-                </button>
-              </form>
-            )}
+              </div>
+              <Button
+                variant="primary"
+                type="submit"
+                disabled={loading}
+                className="w-full h-[46px] mt-6 uppercase tracking-wide"
+              >
+                {loading ? 'Creating account…' : 'Create account'}
+              </Button>
+            </form>
+          )}
 
-            <p className="auth-switch">
-              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-              <button type="button" className="auth-switch-link" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}>
-                {mode === 'login' ? 'Register' : 'Sign in'}
-              </button>
-            </p>
-          </div>
+          <p className="text-center text-sm text-slate-400 mt-6">
+            {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+            <button
+              type="button"
+              className="text-brand-600 font-semibold hover:underline"
+              onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
+            >
+              {mode === 'login' ? 'Register' : 'Sign in'}
+            </button>
+          </p>
         </div>
       </div>
+
     </div>
   );
 }

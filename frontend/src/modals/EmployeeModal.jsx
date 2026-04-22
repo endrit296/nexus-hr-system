@@ -8,7 +8,7 @@ import Input from '../components/ui/Input';
 const employeeSchema = z.object({
   firstName:    z.string().min(1, 'Required'),
   lastName:     z.string().min(1, 'Required'),
-  email:        z.string().email('Invalid email'),
+  email:        z.email({ error: 'Invalid email' }),
   phone:        z.string().optional(),
   position:     z.string().min(1, 'Required'),
   status:       z.enum(['active', 'on_leave', 'inactive']),
