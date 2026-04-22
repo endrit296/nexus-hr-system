@@ -4,9 +4,6 @@ import Avatar from '../components/ui/Avatar';
 import RoleBadge from '../components/ui/RoleBadge';
 import StatusBadge from '../components/ui/StatusBadge';
 import Spinner from '../components/ui/Spinner';
-import './ProfilePage.css';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDateShort(dateStr) {
   if (!dateStr) return '—';
@@ -30,12 +27,26 @@ function calcTenure(hireDateStr) {
   return `${years} yr ${months} mo`;
 }
 
+// ── Field row ─────────────────────────────────────────────────────────────────
+
+function FieldRow({ icon, label, children }) {
+  return (
+    <div className="flex gap-3 items-start pt-4 first:pt-0">
+      <span className="text-base flex-shrink-0 mt-0.5 w-5 text-center">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{label}</div>
+        <div className="text-base text-slate-900">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // ── Phone inline editor ───────────────────────────────────────────────────────
 
 function PhoneField({ value, onSave }) {
-  const [editing,  setEditing]  = useState(false);
-  const [draft,    setDraft]    = useState(value || '');
-  const [saving,   setSaving]   = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState(value || '');
+  const [saving,  setSaving]  = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -51,29 +62,42 @@ function PhoneField({ value, onSave }) {
 
   if (editing) {
     return (
-      <div className="profile-phone-row">
+      <div className="flex items-center gap-2 mt-0.5">
         <input
-          className="profile-phone-input"
+          className="flex-1 h-9 px-3 rounded border-[1.5px] border-brand-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all min-w-0"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="+1 (555) 000-0000"
           autoFocus
           onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); }}
         />
-        <button className="profile-phone-save-btn" onClick={handleSave} disabled={saving}>
+        <button
+          className="px-3 py-1.5 rounded bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 disabled:opacity-50 transition-colors flex-shrink-0"
+          onClick={handleSave}
+          disabled={saving}
+        >
           {saving ? '…' : 'Save'}
         </button>
-        <button className="profile-phone-cancel-btn" onClick={handleCancel}>Cancel</button>
+        <button
+          className="px-2.5 py-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 transition-colors flex-shrink-0"
+          onClick={handleCancel}
+        >
+          Cancel
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="profile-phone-row">
-      <span className={value ? '' : 'profile-field-value muted'} style={{ fontSize: 13.5, fontWeight: 500, color: value ? '#0f172a' : undefined }}>
+    <div className="flex items-center gap-2">
+      <span className={`text-base font-medium ${value ? 'text-slate-900' : 'text-slate-400 italic'}`}>
         {value || 'Not set'}
       </span>
-      <button className="profile-phone-edit-btn" onClick={() => { setDraft(value || ''); setEditing(true); }} title="Edit phone">
+      <button
+        className="p-1 rounded text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors text-xs leading-none"
+        onClick={() => { setDraft(value || ''); setEditing(true); }}
+        title="Edit phone"
+      >
         ✏️
       </button>
     </div>
@@ -103,171 +127,136 @@ function ProfilePage({ user }) {
 
   if (loading) return <Spinner />;
 
-  const role        = user?.role || 'employee';
-  const tenure      = employee ? calcTenure(employee.hireDate) : null;
+  const role         = user?.role || 'employee';
+  const tenure       = employee ? calcTenure(employee.hireDate) : null;
   const subordinates = employee?.subordinates || [];
+  const firstName    = employee?.firstName || user?.username || '';
+  const lastName     = employee?.lastName  || '';
+  const displayName  = employee ? `${employee.firstName} ${employee.lastName}` : user?.username;
 
   return (
     <>
-      {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <div className="profile-hero">
-        {employee
-          ? <Avatar firstName={employee.firstName} lastName={employee.lastName} size="lg" />
-          : <Avatar firstName={user?.username} lastName="" size="lg" />}
+      {/* ── Hero ── */}
+      <div className="relative h-40 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-500 mb-16">
+        <div className="absolute -bottom-10 left-8">
+          <Avatar firstName={firstName} lastName={lastName} size="lg" className="ring-4 ring-white shadow-lg" />
+        </div>
+      </div>
 
-        <div className="profile-hero-info">
-          <h2 className="profile-hero-name">
-            {employee
-              ? `${employee.firstName} ${employee.lastName}`
-              : user?.username}
-          </h2>
-          <p className="profile-hero-position">
-            {employee?.position || 'No position assigned'}
-          </p>
-          <div className="profile-hero-tags">
-            {employee?.status && <StatusBadge status={employee.status} />}
-            {employee?.department?.name && (
-              <span className="profile-hero-tag dept-tag">
-                🏢 {employee.department.name}
+      {/* ── Identity ── */}
+      <div className="pt-4 px-8 mb-6">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-2xl font-extrabold text-slate-900">{displayName}</h2>
+          <RoleBadge role={role} />
+        </div>
+        <p className="text-sm text-slate-500 mt-1">{employee?.position || 'No position assigned'}</p>
+        <div className="flex gap-2 flex-wrap mt-2">
+          {employee?.status && <StatusBadge status={employee.status} />}
+          {employee?.department?.name && (
+            <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+              🏢 {employee.department.name}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── No record warning ── */}
+      {noRecord && (
+        <div className="mx-8 mb-6 border-[1.5px] border-dashed border-slate-300 rounded-xl p-8 text-center text-slate-400">
+          <div className="text-3xl mb-2">🔗</div>
+          <div className="font-semibold text-slate-500 mb-1">No employee record linked</div>
+          <div className="text-sm">Your login account exists but isn&apos;t linked to an employee profile yet.</div>
+          <div className="text-sm mt-1">Ask an admin to create your employee record.</div>
+        </div>
+      )}
+
+      {/* ── Info cards ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6 px-8">
+
+        {/* Contact & Account */}
+        <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm p-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Contact &amp; Account</p>
+          <div className="divide-y divide-slate-50">
+            <FieldRow icon="📧" label="Email">
+              {user?.email || employee?.email || '—'}
+            </FieldRow>
+            <FieldRow icon="📱" label="Phone">
+              {employee
+                ? <PhoneField value={employee.phone} onSave={handlePhoneSave} />
+                : <span className="text-slate-400 italic">No employee record</span>}
+            </FieldRow>
+            <FieldRow icon="👤" label="Username">
+              {user?.username || '—'}
+            </FieldRow>
+            <FieldRow icon="🔑" label="Role">
+              <RoleBadge role={role} />
+            </FieldRow>
+          </div>
+        </div>
+
+        {/* Employment Details */}
+        <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm p-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Employment Details</p>
+          <div className="divide-y divide-slate-50">
+            <FieldRow icon="💼" label="Position">
+              <span className={employee?.position ? 'text-slate-900' : 'text-slate-400 italic'}>
+                {employee?.position || '—'}
               </span>
+            </FieldRow>
+            <FieldRow icon="📅" label="Hire Date">
+              <span>
+                {employee?.hireDate ? formatDateShort(employee.hireDate) : '—'}
+                {tenure && (
+                  <span className="ml-2 inline-block bg-slate-100 border border-slate-200 rounded-full text-xs font-semibold text-slate-500 px-2 py-0.5 align-middle">
+                    {tenure}
+                  </span>
+                )}
+              </span>
+            </FieldRow>
+            <FieldRow icon="🏢" label="Department">
+              <span className={employee?.department?.name ? 'text-slate-900' : 'text-slate-400 italic'}>
+                {employee?.department?.name || '—'}
+              </span>
+            </FieldRow>
+            <FieldRow icon="👤" label="Reports To">
+              <span className={employee?.manager ? 'text-slate-900' : 'text-slate-400 italic'}>
+                {employee?.manager
+                  ? `${employee.manager.firstName} ${employee.manager.lastName}`
+                  : '—'}
+              </span>
+            </FieldRow>
+            {role === 'admin' && (
+              <FieldRow icon="💰" label="Salary">
+                {employee?.salary
+                  ? <span className="text-lg font-bold text-slate-900">{formatSalary(employee.salary)}</span>
+                  : <span className="text-slate-400 italic">—</span>}
+              </FieldRow>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── No employee record warning ──────────────────────────────────── */}
-      {noRecord && (
-        <div className="profile-no-record" style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>🔗</div>
-          <div style={{ fontWeight: 600, color: '#475569', marginBottom: 4 }}>No employee record linked</div>
-          <div>Your login account exists but isn&apos;t linked to an employee profile yet.</div>
-          <div style={{ marginTop: 4 }}>Ask an admin to create your employee record.</div>
-        </div>
-      )}
-
-      {/* ── Card grid ──────────────────────────────────────────────────── */}
-      <div className="profile-grid">
-
-        {/* Contact & Account */}
-        <div className="profile-card">
-          <p className="profile-card-title">Contact &amp; Account</p>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">📧</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Email</div>
-              <div className="profile-field-value">{user?.email || employee?.email || '—'}</div>
-            </div>
-          </div>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">📱</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Phone</div>
-              {employee
-                ? <PhoneField value={employee.phone} onSave={handlePhoneSave} />
-                : <div className="profile-field-value muted">No employee record</div>}
-            </div>
-          </div>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">👤</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Username</div>
-              <div className="profile-field-value">{user?.username || '—'}</div>
-            </div>
-          </div>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">🔑</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Role</div>
-              <RoleBadge role={role} />
-            </div>
-          </div>
-        </div>
-
-        {/* Employment details */}
-        <div className="profile-card">
-          <p className="profile-card-title">Employment Details</p>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">💼</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Position</div>
-              <div className={`profile-field-value${!employee?.position ? ' muted' : ''}`}>
-                {employee?.position || '—'}
-              </div>
-            </div>
-          </div>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">📅</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Hire Date</div>
-              <div className="profile-field-value">
-                {employee?.hireDate ? formatDateShort(employee.hireDate) : '—'}
-                {tenure && <span className="profile-tenure-pill">{tenure}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">🏢</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Department</div>
-              <div className={`profile-field-value${!employee?.department?.name ? ' muted' : ''}`}>
-                {employee?.department?.name || '—'}
-              </div>
-            </div>
-          </div>
-
-          <div className="profile-field">
-            <span className="profile-field-icon">👤</span>
-            <div className="profile-field-body">
-              <div className="profile-field-label">Reports To</div>
-              <div className={`profile-field-value${!employee?.manager ? ' muted' : ''}`}>
-                {employee?.manager
-                  ? `${employee.manager.firstName} ${employee.manager.lastName}`
-                  : '—'}
-              </div>
-            </div>
-          </div>
-
-          {role === 'admin' && (
-            <div className="profile-field">
-              <span className="profile-field-icon">💰</span>
-              <div className="profile-field-body">
-                <div className="profile-field-label">Salary</div>
-                {employee?.salary
-                  ? <div className="profile-salary">{formatSalary(employee.salary)}</div>
-                  : <div className="profile-field-value muted">—</div>}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Direct reports ─────────────────────────────────────────────── */}
+      {/* ── Direct Reports ── */}
       {subordinates.length > 0 && (
-        <div className="profile-reports-card">
-          <p className="profile-card-title">
+        <div className="mx-8 mt-5 bg-white rounded-lg ring-1 ring-slate-200 shadow-sm p-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
             Direct Reports — {subordinates.length} {subordinates.length === 1 ? 'person' : 'people'}
           </p>
-          <div className="profile-reports-grid">
+          <div className="flex flex-wrap gap-3">
             {subordinates.map((sub) => (
-              <div key={sub.id} className="profile-report-chip">
+              <div key={sub.id} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3 w-[220px] hover:border-brand-300 hover:shadow-sm transition-all">
                 <Avatar firstName={sub.firstName} lastName={sub.lastName} size="sm" />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div className="profile-report-name">{sub.firstName} {sub.lastName}</div>
-                    <span className={`profile-report-status profile-report-status--${sub.status || 'active'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-semibold text-slate-900 truncate">{sub.firstName} {sub.lastName}</span>
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      sub.status === 'active'   ? 'bg-green-400' :
+                      sub.status === 'on_leave' ? 'bg-amber-400' : 'bg-slate-400'
+                    }`} />
                   </div>
-                  <div className="profile-report-pos">{sub.position || 'No position'}</div>
+                  <div className="text-xs text-slate-500 truncate mt-0.5">{sub.position || 'No position'}</div>
                   {sub.department?.name && (
-                    <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>
-                      {sub.department.name}
-                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{sub.department.name}</div>
                   )}
                 </div>
               </div>

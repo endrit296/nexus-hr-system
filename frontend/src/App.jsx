@@ -51,19 +51,8 @@ function App() {
             fontSize: '13px',
             fontFamily: '"DM Sans", sans-serif',
           },
-          // Shtohet kjo për t'u siguruar që sukseset/gabimet duken mirë
-          success: {
-            duration: 3000,
-            theme: {
-              primary: '#27ae60',
-            },
-          },
-          error: {
-            duration: 4000,
-            theme: {
-              primary: '#e74c3c',
-            },
-          },
+          success: { duration: 3000 },
+          error:   { duration: 4000 },
         }}
       />
       

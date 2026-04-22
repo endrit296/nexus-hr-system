@@ -51,6 +51,15 @@ export default {
         brand: '0 2px 6px rgba(37,99,235,0.35)',
         focus: '0 0 0 3px rgba(37,99,235,0.12)',
       },
+      keyframes: {
+        fadeIn: {
+          '0%':   { opacity: '0', transform: 'translateY(6px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        fadeIn: 'fadeIn 0.25s ease-out',
+      },
     },
   },
   plugins: [],

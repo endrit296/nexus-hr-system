@@ -5,7 +5,7 @@ import ConfirmModal from '../modals/ConfirmModal';
 import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
-import { showError } from '../utils/toast';
+import { showSuccess, showError } from '../utils/toast';
 
 const COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'];
 
@@ -32,7 +32,7 @@ function DepartmentsPage() {
   const handleAdd = (payload) => {
     setSaving(true);
     client.post('/api/departments', payload)
-      .then(() => { setShowAdd(false); fetchDepartments(); })
+      .then(() => { setShowAdd(false); fetchDepartments(); showSuccess('Department added.'); })
       .catch((err) => showError(err.response?.data?.message || 'Failed to create department'))
       .finally(() => setSaving(false));
   };
@@ -41,7 +41,7 @@ function DepartmentsPage() {
     setDeleting(true);
     setDeleteError('');
     client.delete(`/api/departments/${confirmId}`)
-      .then(() => { setConfirmId(null); fetchDepartments(); })
+      .then(() => { setConfirmId(null); fetchDepartments(); showSuccess('Department deleted.'); })
       .catch((err) => {
         setDeleteError(err.response?.data?.message || 'Failed to delete department');
         setDeleting(false);

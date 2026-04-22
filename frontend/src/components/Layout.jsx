@@ -80,7 +80,11 @@ function Layout({ user, onLogout }) {
         {/* ── Page content ── */}
         <main className="flex-1 p-6">
           <div className="max-w-6xl mx-auto">
-            <Suspense fallback={<Spinner />}>{renderPage()}</Suspense>
+            <Suspense fallback={<Spinner />}>
+              <div key={activePage} className="animate-fadeIn">
+                {renderPage()}
+              </div>
+            </Suspense>
           </div>
         </main>
 

@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import client from '../api/client';
+import Avatar from '../components/ui/Avatar';
 import StatusBadge from '../components/ui/StatusBadge';
 import Spinner from '../components/ui/Spinner';
 import './OrgChartPage.css';
+
+const SearchIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+);
 
 // ── Tree builder ──────────────────────────────────────────────────────────────
 function buildTree(employees) {
@@ -18,19 +25,24 @@ function buildTree(employees) {
 
 // ── Employee card ─────────────────────────────────────────────────────────────
 function OrgCard({ employee, highlight }) {
-  const initials = `${employee.firstName?.[0] || ''}${employee.lastName?.[0] || ''}`.toUpperCase();
   return (
-    <div className={`org-card ${highlight === 'on' ? 'highlighted' : highlight === 'dim' ? 'dimmed' : ''}`}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <div className="org-card-avatar">{initials}</div>
-        <div style={{ minWidth: 0 }}>
-          <div className="org-card-name">{employee.firstName} {employee.lastName}</div>
-          <div className="org-card-position">{employee.position || 'No position'}</div>
+    <div className={[
+      'bg-white rounded-xl ring-1 ring-slate-200 shadow-sm p-4 w-48 pointer-events-auto transition-shadow hover:shadow-md',
+      highlight === 'on'  ? 'ring-brand-500 shadow-[0_0_0_3px_rgba(99,102,241,0.15)]' : '',
+      highlight === 'dim' ? 'opacity-25' : '',
+    ].filter(Boolean).join(' ')}>
+      <div className="flex items-center gap-2.5 mb-2">
+        <Avatar firstName={employee.firstName} lastName={employee.lastName} size="sm" />
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-slate-900 truncate">{employee.firstName} {employee.lastName}</div>
+          <div className="text-xs text-slate-500 truncate">{employee.position || 'No position'}</div>
         </div>
       </div>
-      <div className="org-card-meta">
+      <div className="flex items-center gap-1.5 flex-wrap">
         {employee.department?.name && (
-          <span className="org-card-dept">🏢 {employee.department.name}</span>
+          <span className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full truncate max-w-[110px]">
+            🏢 {employee.department.name}
+          </span>
         )}
         <StatusBadge status={employee.status || 'active'} />
       </div>
@@ -50,12 +62,10 @@ function OrgNode({ node, search, matchIds }) {
 
       {hasChildren && (
         <>
-          {/* Vertical line from card down to horizontal bar */}
           <div className="org-line-v" style={{ height: 24 }} />
           <div className="org-children-row">
             {children.map((child) => (
               <div key={child.id} className="org-child-wrap">
-                {/* Vertical line from horizontal bar down to child card */}
                 <div className="org-line-v" style={{ height: 24 }} />
                 <OrgNode node={child} search={search} matchIds={matchIds} />
               </div>
@@ -80,16 +90,14 @@ function OrgChartPage() {
   const [search, setSearch]       = useState('');
   const [zoomPct, setZoomPct]     = useState(Math.round(INITIAL_ZOOM * 100));
 
-  // Refs for imperative pan/zoom — avoids re-rendering on every drag frame
-  const canvasRef   = useRef(null);
-  const treeRef     = useRef(null);
-  const isDragging  = useRef(false);
-  const lastMouse   = useRef({ x: 0, y: 0 });
-  const pan         = useRef({ x: 0, y: 0 });
-  const zoom        = useRef(INITIAL_ZOOM);
-  const lastPinch   = useRef(null);
+  const canvasRef  = useRef(null);
+  const treeRef    = useRef(null);
+  const isDragging = useRef(false);
+  const lastMouse  = useRef({ x: 0, y: 0 });
+  const pan        = useRef({ x: 0, y: 0 });
+  const zoom       = useRef(INITIAL_ZOOM);
+  const lastPinch  = useRef(null);
 
-  // Apply transform directly to DOM — no React state update needed per frame
   const applyTransform = useCallback(() => {
     if (!treeRef.current) return;
     treeRef.current.style.transform =
@@ -103,7 +111,6 @@ function OrgChartPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Set initial transform once tree mounts
   useEffect(() => { applyTransform(); }, [employees, applyTransform]);
 
   // ── Mouse events ─────────────────────────────────────────────────────────
@@ -129,7 +136,7 @@ function OrgChartPage() {
     canvasRef.current?.classList.remove('dragging');
   }, []);
 
-  // ── Wheel zoom (no Ctrl required — canvas-only scroll) ───────────────────
+  // ── Wheel zoom ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -145,7 +152,7 @@ function OrgChartPage() {
     return () => canvas.removeEventListener('wheel', handler);
   }, [applyTransform]);
 
-  // ── Touch events (one-finger pan, two-finger pinch zoom) ─────────────────
+  // ── Touch events ─────────────────────────────────────────────────────────
 
   const onTouchStart = useCallback((e) => {
     if (e.touches.length === 1) {
@@ -170,8 +177,7 @@ function OrgChartPage() {
       const dx   = e.touches[0].clientX - e.touches[1].clientX;
       const dy   = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
-      const scale = dist / lastPinch.current;
-      zoom.current = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.current * scale));
+      zoom.current = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.current * (dist / lastPinch.current)));
       lastPinch.current = dist;
       setZoomPct(Math.round(zoom.current * 100));
       applyTransform();
@@ -185,7 +191,7 @@ function OrgChartPage() {
 
   // ── Zoom buttons ─────────────────────────────────────────────────────────
 
-  const zoomIn  = () => {
+  const zoomIn = () => {
     zoom.current = Math.min(ZOOM_MAX, +(zoom.current + ZOOM_STEP).toFixed(2));
     setZoomPct(Math.round(zoom.current * 100));
     applyTransform();
@@ -225,39 +231,59 @@ function OrgChartPage() {
   [employees]);
 
   if (loading) return <Spinner />;
-  if (error)   return <p className="error-msg">{error}</p>;
+  if (error)   return <p className="py-10 text-center text-red-500 text-sm">{error}</p>;
 
   return (
     <>
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="page-header" style={{ flexWrap: 'wrap', gap: 10 }}>
-        <h3 style={{ margin: 0 }}>
-          {employees.length} employee{employees.length !== 1 ? 's' : ''}
-          {deptCount > 0 && ` · ${deptCount} dept${deptCount !== 1 ? 's' : ''}`}
-        </h3>
+      {/* ── Header ── */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900">Org Chart</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {employees.length} employee{employees.length !== 1 ? 's' : ''}
+            {deptCount > 0 && ` · ${deptCount} dept${deptCount !== 1 ? 's' : ''}`}
+          </p>
+        </div>
 
-        <div className="org-toolbar">
-          <input
-            className="search-input"
-            placeholder="Search name, position, dept…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: 220 }}
-          />
-
-          <div className="org-zoom-controls">
-            <button className="org-zoom-btn" onClick={zoomOut} title="Zoom out">−</button>
-            <span className="org-zoom-pct">{zoomPct}%</span>
-            <button className="org-zoom-btn" onClick={zoomIn}  title="Zoom in">+</button>
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
+          {/* Search */}
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+              <SearchIcon />
+            </span>
+            <input
+              className="h-[42px] pl-10 pr-4 w-56 rounded-lg border-[1.5px] border-slate-200 bg-white text-sm placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:shadow-focus transition-all duration-200"
+              placeholder="Search name, position, dept…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
 
-          <button className="org-reset-btn" onClick={resetView}>Reset view</button>
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg px-1.5 py-1">
+            <button
+              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors text-lg leading-none"
+              onClick={zoomOut} title="Zoom out"
+            >−</button>
+            <span className="text-xs font-semibold text-slate-500 min-w-[36px] text-center">{zoomPct}%</span>
+            <button
+              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors text-lg leading-none"
+              onClick={zoomIn} title="Zoom in"
+            >+</button>
+          </div>
 
-          <span className="org-hint">Drag to pan · Scroll to zoom</span>
+          <button
+            className="text-xs font-medium text-slate-600 border border-slate-200 rounded-lg px-2.5 py-2 hover:bg-slate-50 hover:text-slate-900 transition-colors whitespace-nowrap"
+            onClick={resetView}
+          >
+            Reset view
+          </button>
+
+          <span className="text-xs text-slate-400 whitespace-nowrap hidden sm:inline">Drag to pan · Scroll to zoom</span>
         </div>
       </div>
 
-      {/* ── Canvas ──────────────────────────────────────────────────────── */}
+      {/* ── Canvas ── */}
       <div
         ref={canvasRef}
         className="org-canvas"
@@ -271,9 +297,7 @@ function OrgChartPage() {
       >
         <div ref={treeRef} className="org-tree-wrap">
           {roots.length === 0 ? (
-            <p style={{ color: '#94a3b8', padding: 48, fontSize: 15 }}>
-              No employees yet.
-            </p>
+            <p className="text-slate-400 p-12 text-sm">No employees yet.</p>
           ) : (
             <div style={{ display: 'flex', gap: 48, alignItems: 'flex-start' }}>
               {roots.map((root) => (

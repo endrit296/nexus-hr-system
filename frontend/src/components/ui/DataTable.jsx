@@ -4,7 +4,7 @@ function DataTable({ columns = [], data = [], loading = false, emptyMessage = 'N
   if (loading) return <Spinner />;
 
   return (
-    <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden overflow-x-auto">
       {data.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-slate-400 text-base">{emptyMessage}</div>
       ) : (

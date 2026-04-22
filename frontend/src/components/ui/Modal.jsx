@@ -2,9 +2,9 @@ import { Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
 const sizeMap = {
-  sm: 'max-w-sm',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
+  sm: 'sm:max-w-sm',
+  md: 'sm:max-w-lg',
+  lg: 'sm:max-w-2xl',
 };
 
 function Modal({ isOpen, onClose, title, children, footer, size = 'md' }) {
@@ -20,15 +20,19 @@ function Modal({ isOpen, onClose, title, children, footer, size = 'md' }) {
           <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" />
         </TransitionChild>
 
-        {/* Panel */}
+        {/* Panel — bottom sheet on mobile, centered dialog on sm+ */}
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+          <div className="flex min-h-full items-end sm:items-center justify-center sm:p-4">
             <TransitionChild
               as={Fragment}
-              enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-150"  leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+              enter="ease-out duration-250"
+              enterFrom="opacity-0 translate-y-full sm:translate-y-0 sm:scale-95"
+              enterTo="opacity-100 translate-y-0 sm:scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 translate-y-0 sm:scale-100"
+              leaveTo="opacity-0 translate-y-full sm:translate-y-0 sm:scale-95"
             >
-              <DialogPanel className={`w-full ${sizeMap[size]} bg-white rounded-xl shadow-xl flex flex-col`}>
+              <DialogPanel className={`w-full ${sizeMap[size]} bg-white shadow-xl flex flex-col rounded-t-2xl sm:rounded-xl`}>
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
                   <DialogTitle className="text-xl font-bold text-slate-900">{title}</DialogTitle>
@@ -44,7 +48,7 @@ function Modal({ isOpen, onClose, title, children, footer, size = 'md' }) {
                 </div>
 
                 {/* Body */}
-                <div className="px-6 py-5 flex-1">{children}</div>
+                <div className="px-6 py-5 flex-1 overflow-y-auto max-h-[70vh] sm:max-h-none">{children}</div>
 
                 {/* Footer */}
                 {footer && (

@@ -4,10 +4,10 @@ const sizeMap = {
   lg: 'w-20 h-20 text-xl',
 };
 
-function Avatar({ firstName = '', lastName = '', size = 'md' }) {
+function Avatar({ firstName = '', lastName = '', size = 'md', className = '' }) {
   const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || '?';
   return (
-    <div className={`${sizeMap[size]} rounded-full bg-gradient-to-br from-brand-500 to-indigo-500 flex items-center justify-center text-white font-bold flex-shrink-0`}>
+    <div className={`${sizeMap[size]} rounded-full bg-gradient-to-br from-brand-500 to-indigo-500 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
       {initials}
     </div>
   );
