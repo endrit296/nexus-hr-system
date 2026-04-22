@@ -49,9 +49,7 @@ function Login({ onLogin }) {
     setServerError('');
     try {
       const { data } = await client.post('/api/auth/login', { email, password });
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('refreshToken', data.refreshToken);
-      onLogin(data.user);
+      onLogin(data.user, data.token, data.refreshToken);
     } catch (err) {
       setServerError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
@@ -65,9 +63,7 @@ function Login({ onLogin }) {
     try {
       const username = `${firstName}${lastName}`.toLowerCase().replace(/[^a-z0-9]/g, '');
       const { data } = await client.post('/api/auth/register', { username, email, password });
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('refreshToken', data.refreshToken);
-      onLogin(data.user);
+      onLogin(data.user, data.token, data.refreshToken);
     } catch (err) {
       setServerError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {

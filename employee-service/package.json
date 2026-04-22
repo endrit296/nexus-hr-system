@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test": "jest --testEnvironment node --forceExit"
+  },
+  "jest": {
+    "testMatch": ["**/tests/**/*.test.js"],
+    "testTimeout": 15000
   },
   "dependencies": {
     "dotenv": "^16.3.1",
@@ -19,6 +24,9 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2",
+    "sqlite3": "^5.1.7",
+    "supertest": "^6.3.4"
   }
 }

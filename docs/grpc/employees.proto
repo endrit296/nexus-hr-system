@@ -1,0 +1,174 @@
+// Nexus HR System — gRPC Service Definitions
+// Status: Conceptual design artifact. Not implemented in code.
+//
+// These .proto contracts would replace the HTTP-proxy pattern in api-gateway
+// for internal service-to-service calls, providing:
+//   - Strongly-typed contracts (compile-time safety vs. runtime JSON parse)
+//   - Binary serialization (Protocol Buffers — ~5x smaller than JSON)
+//   - Bidirectional streaming for real-time org chart updates
+//   - Code generation for client stubs in any language
+//
+// Renderer: https://buf.build or `protoc --descriptor_set_out`
+// Node.js: @grpc/grpc-js + @grpc/proto-loader
+
+syntax = "proto3";
+
+package nexus.hr;
+
+option js_package = "nexus_hr_pb";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EmployeeService — replaces REST /api/v1/employees/* for internal callers
+// ─────────────────────────────────────────────────────────────────────────────
+service EmployeeService {
+  // Unary: fetch one employee by ID
+  rpc GetEmployee (EmployeeRequest) returns (EmployeeResponse);
+
+  // Unary: list employees with optional filters
+  rpc ListEmployees (ListEmployeesRequest) returns (ListEmployeesResponse);
+
+  // Unary: create employee (admin only — caller passes role via metadata)
+  rpc CreateEmployee (CreateEmployeeRequest) returns (EmployeeResponse);
+
+  // Unary: update employee
+  rpc UpdateEmployee (UpdateEmployeeRequest) returns (EmployeeResponse);
+
+  // Unary: delete employee
+  rpc DeleteEmployee (EmployeeRequest) returns (DeleteResponse);
+
+  // Server-streaming: watch a single employee's status changes in real time
+  // Useful for an org chart that updates live without polling.
+  rpc WatchEmployeeStatus (EmployeeRequest) returns (stream StatusEvent);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DepartmentService — replaces REST /api/v1/departments/* for internal callers
+// ─────────────────────────────────────────────────────────────────────────────
+service DepartmentService {
+  rpc ListDepartments (ListDepartmentsRequest) returns (ListDepartmentsResponse);
+  rpc CreateDepartment (CreateDepartmentRequest) returns (DepartmentResponse);
+  rpc DeleteDepartment (DepartmentRequest) returns (DeleteResponse);
+  rpc GetDepartmentStats (DepartmentStatsRequest) returns (DepartmentStatsResponse);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Messages
+// ─────────────────────────────────────────────────────────────────────────────
+
+message EmployeeRequest {
+  int32 id = 1;
+}
+
+message DepartmentRequest {
+  int32 id = 1;
+}
+
+message DepartmentStatsRequest {
+  // empty — returns stats for all departments
+}
+
+enum EmployeeStatus {
+  ACTIVE   = 0;
+  INACTIVE = 1;
+  ON_LEAVE = 2;
+}
+
+message Employee {
+  int32          id            = 1;
+  string         first_name    = 2;
+  string         last_name     = 3;
+  string         email         = 4;
+  string         phone         = 5;
+  string         position      = 6;
+  EmployeeStatus status        = 7;
+  string         hire_date     = 8;  // ISO 8601 date string
+  double         salary        = 9;
+  int32          department_id = 10;
+  int32          manager_id    = 11;
+  Department     department    = 12; // embedded for org chart use
+}
+
+message Department {
+  int32  id             = 1;
+  string name           = 2;
+  int32  employee_count = 3;
+}
+
+message DepartmentStat {
+  string dept_name   = 1;
+  int64  headcount   = 2;
+  double avg_salary  = 3;
+}
+
+message EmployeeResponse {
+  Employee employee = 1;
+}
+
+message ListEmployeesRequest {
+  string status        = 1; // optional filter
+  int32  department_id = 2; // optional filter
+  int32  page          = 3; // 0-indexed
+  int32  page_size     = 4; // default 50
+}
+
+message ListEmployeesResponse {
+  repeated Employee employees = 1;
+  int32             total     = 2;
+}
+
+message CreateEmployeeRequest {
+  string first_name    = 1;
+  string last_name     = 2;
+  string email         = 3;
+  string phone         = 4;
+  string position      = 5;
+  string hire_date     = 6;
+  double salary        = 7;
+  int32  department_id = 8;
+  int32  manager_id    = 9;
+}
+
+message UpdateEmployeeRequest {
+  int32  id            = 1;
+  string first_name    = 2;
+  string last_name     = 3;
+  string email         = 4;
+  string phone         = 5;
+  string position      = 6;
+  string status        = 7;
+  double salary        = 8;
+  int32  department_id = 9;
+  int32  manager_id    = 10;
+}
+
+message DeleteResponse {
+  bool   success = 1;
+  string message = 2;
+}
+
+message StatusEvent {
+  int32          employee_id = 1;
+  EmployeeStatus old_status  = 2;
+  EmployeeStatus new_status  = 3;
+  string         timestamp   = 4; // ISO 8601
+}
+
+message ListDepartmentsRequest {
+  // empty — returns all departments
+}
+
+message ListDepartmentsResponse {
+  repeated Department departments = 1;
+}
+
+message CreateDepartmentRequest {
+  string name = 1;
+}
+
+message DepartmentResponse {
+  Department department = 1;
+}
+
+message DepartmentStatsResponse {
+  repeated DepartmentStat stats = 1;
+}

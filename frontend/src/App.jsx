@@ -1,45 +1,32 @@
-import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast'; // Ti po përdor këtë librari
+import { Toaster } from 'react-hot-toast';
 import Login from './components/Login';
 import Layout from './components/Layout';
+import useAuthStore from './store/useAuthStore';
+import client from './api/client';
 
 function App() {
-  const [user, setUser] = useState(() => {
-    const token = localStorage.getItem('token');
-    const stored = localStorage.getItem('nexus_user');
-    if (token && stored) {
-      try { return JSON.parse(stored); } catch { return null; }
-    }
-    return null;
-  });
+  const { user, login, logout } = useAuthStore();
 
-  const handleLogin = (userData) => {
-    localStorage.setItem('nexus_user', JSON.stringify(userData));
-    setUser(userData);
+  const handleLogin = (userData, token, refreshToken) => {
+    login(userData, token, refreshToken);
   };
 
   const handleLogout = async () => {
-    const refreshToken = localStorage.getItem('refreshToken');
+    const { refreshToken } = useAuthStore.getState();
     try {
       if (refreshToken) {
-        await import('./api/client').then(({ default: client }) =>
-          client.post('/api/auth/logout', { refreshToken })
-        );
+        await client.post('/api/auth/logout', { refreshToken });
       }
     } catch {
-      // Ignore
+      // ignore
     } finally {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('nexus_user');
-      setUser(null);
+      logout();
     }
   };
 
   return (
     <>
-      {/* Kjo është "mbajtësja" e njoftimeve që ke aktualisht */}
       <Toaster
         position="top-right"
         toastOptions={{
@@ -55,16 +42,16 @@ function App() {
           error:   { duration: 4000 },
         }}
       />
-      
+
       <Routes>
-        <Route 
-          path="/login" 
-          element={!user ? <Login onLogin={handleLogin} /> : <Navigate replace to="/dashboard" />} 
+        <Route
+          path="/login"
+          element={!user ? <Login onLogin={handleLogin} /> : <Navigate replace to="/dashboard" />}
         />
-        
-        <Route 
-          path="/*" 
-          element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />} 
+
+        <Route
+          path="/*"
+          element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />}
         />
       </Routes>
     </>
