@@ -1,10 +1,13 @@
 # Nexus HR System
 
-A web-based Human Resources management platform built with a **microservices architecture**. Each concern is isolated into its own service — authentication, employee data, and an API Gateway that acts as the single entry point for all client requests.
+A production-grade Human Resources management platform built with a **microservices architecture**. Each concern is isolated into its own independently deployable service, connected through a central API Gateway.
 
 ## Quick Start (Docker)
 
 ```bash
+# Copy secrets file (edit values before deploying to production)
+cp .env.example .env
+
 docker compose up --build
 ```
 
@@ -18,7 +21,7 @@ All demo accounts use the password: **`Password123`**
 
 | Role | Email | Name | Position |
 |---|---|---|---|
-| **admin** | alice@nexushr.com | Alice Johnson | CEO |
+| **admin** | admin@nexushr.com | Admin | CEO |
 | **manager** | bob@nexushr.com | Bob Smith | CTO |
 | **manager** | frank@nexushr.com | Frank Miller | CMO |
 | **manager** | karen@nexushr.com | Karen Martinez | HR Director |
@@ -39,12 +42,14 @@ All demo accounts use the password: **`Password123`**
 | Feature | Employee | Manager | Admin |
 |---|:---:|:---:|:---:|
 | View employee directory & org chart | ✅ | ✅ | ✅ |
+| View dashboard analytics & charts | ✅ | ✅ | ✅ |
 | View departments | ✅ | ✅ | ✅ |
+| Edit own phone number (profile page) | ✅ | ✅ | ✅ |
 | Edit direct subordinates | ❌ | ✅ | ✅ |
 | View / edit salary | ❌ | ❌ | ✅ |
 | Add / delete employees | ❌ | ❌ | ✅ |
 | Add / delete departments | ❌ | ❌ | ✅ |
-| User Management (assign roles) | ❌ | ❌ | ✅ |
+| Generate payroll reports | ✅ | ✅ | ✅ |
 
 ### Re-seeding demo data
 
@@ -64,52 +69,63 @@ docker exec nexus-hr-system-employee-service-1 node seed-employees.js
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
-- [Setup & Installation](#setup--installation)
 - [Environment Variables](#environment-variables)
 - [Running the Project](#running-the-project)
 - [API Reference](#api-reference)
 - [Authentication Flow](#authentication-flow)
 - [Database Models](#database-models)
+- [Testing](#testing)
 
 ---
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     Browser                             │
-│              http://localhost:5173                      │
-└─────────────────────────┬───────────────────────────────┘
-                          │ HTTP (Axios)
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                   API Gateway                           │
-│                  localhost:8080                         │
-│                                                         │
-│   /api/auth/*  ──────────────►  Auth Service :3001      │
-│   /api/employees/*  ─────────►  Employee Service :3002  │
-└─────────────────────────────────────────────────────────┘
-          │                               │
-          ▼                               ▼
-  ┌───────────────┐               ┌───────────────┐
-  │  Auth Service │               │Employee Service│
-  │  Port 3001    │               │  Port 3002     │
-  │  Node/Express │               │  Node/Express  │
-  └───────┬───────┘               └───────┬────────┘
-          │                               │
-          ▼                               ▼
-  ┌───────────────┐               ┌───────────────┐
-  │   MongoDB     │               │  PostgreSQL    │
-  │   Port 27017  │               │  Port 5432     │
-  │  nexus_auth   │               │   nexus_hr     │
-  └───────────────┘               └───────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                          Browser                                 │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │ HTTP (Axios + Zustand)
+                             ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    Nginx  (port 80)                              │
+│              Load balancer / reverse proxy                       │
+└──────┬─────────────────────────────────────┬─────────────────────┘
+       │ /api/*                              │ /*
+       ▼                                     ▼
+┌─────────────────┐                  ┌──────────────┐
+│   API Gateway   │                  │   Frontend   │
+│   port 8080     │                  │  React/Vite  │
+│                 │                  └──────────────┘
+│ Rate limiting   │
+│ JWT validation  │
+│ API versioning  │
+│ Swagger /docs   │
+│ X-API-Version   │
+└──┬──────┬───┬───┘
+   │      │   │
+   │      │   └──────────────────────────────────────┐
+   │      │                                          │
+   ▼      ▼                                          ▼
+┌──────┐ ┌──────────────────┐             ┌──────────────────────┐
+│Auth  │ │Employee Service  │             │Time-Tracking Service │
+│:3001 │ │:3002             │             │:3005                 │
+│Mongo │ │PostgreSQL+Redis  │             │MongoDB               │
+└──────┘ └──────────────────┘             └──────────────────────┘
+   │              │                                  │
+   ▼              ▼                                  ▼
+MongoDB      PostgreSQL                           MongoDB
+(nexus_auth) (nexus_hr)         Redis         (nexus_payroll)
+                              (cache layer)
 ```
 
 **Key design decisions:**
-- The frontend only ever talks to the **API Gateway** — it never calls services directly
-- The gateway uses **http-proxy-middleware** to forward requests; it does not parse request bodies
-- Each service is **stateless** — no session state in memory; auth is handled via JWT
-- Both databases are managed independently — MongoDB for flexible auth documents, PostgreSQL for structured employee records
+- The frontend only ever talks to **Nginx → API Gateway** — no direct service calls
+- The gateway validates JWTs and forwards `X-User-Role` / `X-User-Email` headers to downstream services
+- Versioned routes at `/api/v1/*` with legacy `/api/*` aliases for backwards compatibility
+- Redis cache-aside (30 s TTL) on all list endpoints in the employee service
+- HATEOAS `_links` on every resource response for discoverability
+- JWT access tokens expire in **15 minutes**; refresh tokens last **7 days**
+- Structured JSON logging via Winston + Morgan in all four services
 
 ---
 
@@ -117,13 +133,25 @@ docker exec nexus-hr-system-employee-service-1 node seed-employees.js
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| Frontend | React 18 + Vite | UI, fast dev server |
-| HTTP Client | Axios | API calls from frontend |
+| Frontend | React 18 + Vite | UI with fast HMR |
+| Styling | Tailwind CSS v3 | Utility-first CSS |
+| State management | Zustand + persist | Auth state across page reloads |
+| HTTP Client | Axios | API calls + silent token refresh interceptor |
+| Form validation | react-hook-form + Zod | Type-safe client-side validation |
+| Charts | Recharts | Dashboard analytics visualisations |
+| Toasts | react-hot-toast | Non-blocking user feedback |
 | API Gateway | Express + http-proxy-middleware | Single entry point, request routing |
-| Auth Service | Express + Mongoose + bcryptjs + jsonwebtoken | User registration, login, JWT |
-| Employee Service | Express + Sequelize + Joi | Employee CRUD, input validation |
-| Auth Database | MongoDB | NoSQL document store for users |
-| Employee Database | PostgreSQL | Relational store for employee records |
+| Rate limiting | express-rate-limit | Brute-force protection on auth routes |
+| API Docs | swagger-jsdoc + swagger-ui-express | OpenAPI 3.0 at `/api/docs` |
+| Auth Service | Express + Mongoose + bcryptjs + jsonwebtoken | User registration, login, JWT + refresh tokens |
+| Employee Service | Express + Sequelize + Joi | Employee / department CRUD, input validation |
+| Payroll Service | Express + Mongoose | Payroll calculation, time logs |
+| Cache | Redis (ioredis) | Cache-aside layer for list endpoints |
+| Auth Database | MongoDB | NoSQL document store for users & refresh tokens |
+| Employee Database | PostgreSQL | Relational store for employees & departments |
+| Payroll Database | MongoDB | Time logs & payroll records |
+| Load Balancer | Nginx | Reverse proxy, static file serving |
+| Logging | Winston + Morgan | Structured JSON logs + HTTP access logs |
 | Runtime | Node.js v22+ | All backend services |
 
 ---
@@ -133,49 +161,85 @@ docker exec nexus-hr-system-employee-service-1 node seed-employees.js
 ```
 nexus-hr-system/
 │
-├── api-gateway/                  # Entry point for all client requests (port 8080)
-│   ├── index.js                  # Proxy routes + health check
+├── api-gateway/                    # Entry point for all client requests (port 8080)
+│   ├── index.js                    # Proxy routes, rate limiting, Swagger mount
+│   ├── swagger.js                  # OpenAPI 3.0 spec definition
+│   ├── logger.js                   # Winston logger
 │   └── package.json
 │
-├── auth-service/                 # Handles registration, login, JWT (port 3001)
-│   ├── index.js                  # Mounts /auth routes
-│   ├── db.js                     # MongoDB connection
+├── auth-service/                   # Handles registration, login, JWT (port 3001)
+│   ├── index.js
+│   ├── db.js                       # MongoDB connection
+│   ├── logger.js
 │   ├── models/
-│   │   └── User.js               # Mongoose schema: username, email, password
+│   │   ├── User.js                 # Mongoose schema: username, email, password, role
+│   │   └── RefreshToken.js         # Refresh token store with expiry
 │   ├── routes/
-│   │   └── auth.js               # POST /auth/register, POST /auth/login
-│   ├── .env.example
+│   │   └── auth.js                 # POST /auth/register|login|refresh|logout
+│   ├── tests/
+│   │   └── auth.test.js            # Jest + Supertest integration tests (15 cases)
 │   └── package.json
 │
-├── employee-service/             # Full employee CRUD (port 3002)
-│   ├── index.js                  # Connects DB, syncs table, mounts routes
+├── employee-service/               # Full employee & department CRUD (port 3002)
+│   ├── index.js                    # DB sync, associations, route mount
+│   ├── cache.js                    # ioredis wrapper with graceful degradation
+│   ├── logger.js
 │   ├── config/
-│   │   └── database.js           # Sequelize + PostgreSQL connection
+│   │   └── database.js             # Sequelize + PostgreSQL connection
+│   ├── middleware/
+│   │   └── auth.js                 # requireRole() — reads X-User-Role header
 │   ├── models/
-│   │   └── Employee.js           # Sequelize model: firstName, lastName, email, department
+│   │   ├── Employee.js             # Sequelize model with indexes
+│   │   └── Department.js           # Sequelize model
 │   ├── routes/
-│   │   └── employee.js           # GET/POST/PUT/DELETE /employees
-│   ├── .env.example
+│   │   ├── employee.js             # GET/POST/PUT/DELETE /employees (HATEOAS + cache)
+│   │   └── department.js           # GET/POST/DELETE /departments (HATEOAS + cache)
+│   ├── tests/
+│   │   └── employee.test.js        # Jest + Supertest + SQLite in-memory (13 cases)
 │   └── package.json
 │
-├── frontend/                     # React + Vite app (port 5173)
+├── time-tracking-service/          # Payroll calculation (port 3005)
+│   ├── server.js                   # Express app, gateway-auth guard
 │   ├── src/
-│   │   ├── api/
-│   │   │   └── client.js         # Axios instance, JWT interceptor
-│   │   ├── components/
-│   │   │   ├── Login.jsx          # Login form → calls /api/auth/login
-│   │   │   ├── Login.css
-│   │   │   ├── EmployeeList.jsx   # Dashboard, fetches /api/employees
-│   │   │   ├── EmployeeList.css
-│   │   │   ├── SystemInfo.jsx     # System info card
-│   │   │   └── SystemInfo.css
-│   │   ├── App.jsx               # Auth state, routes between Login / Dashboard
-│   │   ├── main.jsx              # React entry point
-│   │   └── index.css             # Global styles
-│   ├── index.html
-│   ├── vite.config.js
+│   │   ├── controllers/
+│   │   │   └── time.controller.js  # processSalary — validated payroll calculation
+│   │   ├── models/
+│   │   │   └── TimeLog.js          # Mongoose schema for time logs
+│   │   ├── routes/
+│   │   │   └── time.routes.js
+│   │   └── logger.js
 │   └── package.json
 │
+├── frontend/                       # React + Vite app
+│   └── src/
+│       ├── api/
+│       │   └── client.js           # Axios instance + silent refresh interceptor
+│       ├── store/
+│       │   └── useAuthStore.js     # Zustand store with localStorage persist
+│       ├── components/
+│       │   ├── Login.jsx           # Login + register forms (Zod validation)
+│       │   ├── Layout.jsx          # Sidebar + topbar shell
+│       │   └── ui/                 # Avatar, Button, Input, DataTable, StatusBadge …
+│       └── pages/
+│           ├── DashboardHome.jsx   # Stat cards + Pie/Bar/Line charts
+│           ├── EmployeesPage.jsx   # Full employee CRUD table
+│           ├── DepartmentsPage.jsx # Department management
+│           ├── OrgChartPage.jsx    # Interactive org chart
+│           ├── ProfilePage.jsx     # My profile + direct reports
+│           └── PayrollPage.jsx     # Payroll calculator
+│
+├── docs/
+│   ├── schema.sql                  # Full PostgreSQL DDL (tables, indexes, trigger, procedure)
+│   ├── messaging/
+│   │   └── event-flow.md           # RabbitMQ conceptual design (topic exchange nexus.hr)
+│   └── grpc/
+│       └── employees.proto         # proto3 service definitions (EmployeeService, DepartmentService)
+│
+├── scripts/                        # Seed scripts for demo data
+├── nginx/
+│   └── nginx.conf                  # Upstream blocks + proxy config
+├── docker-compose.yml
+├── .env.example                    # Template for production secrets
 └── README.md
 ```
 
@@ -183,70 +247,65 @@ nexus-hr-system/
 
 ## Prerequisites
 
-Make sure the following are installed on your machine before starting:
+**Docker (recommended)** — only requirement for running via `docker compose`:
 
-| Requirement | Version | Download |
-|---|---|---|
-| Node.js | v18+ (v22 recommended) | https://nodejs.org |
-| PostgreSQL | v14+ | https://www.postgresql.org/download/windows/ |
-| MongoDB | v6+ | https://www.mongodb.com/try/download/community |
+| Tool | Version |
+|---|---|
+| Docker Desktop | 4.x+ |
 
-**PostgreSQL setup** — after installing, create the database:
-```bash
-psql -U postgres -c "CREATE DATABASE nexus_hr;"
-```
+**Manual (without Docker):**
 
-**MongoDB** — if installed as a service (default), it starts automatically. No database creation needed — Mongoose creates it on first connection.
-
----
-
-## Setup & Installation
-
-Clone the repo and install dependencies for each service:
-
-```bash
-# API Gateway
-cd api-gateway && npm install
-
-# Auth Service
-cd ../auth-service && npm install
-
-# Employee Service
-cd ../employee-service && npm install
-
-# Frontend
-cd ../frontend && npm install
-```
+| Tool | Version |
+|---|---|
+| Node.js | v18+ (v22 recommended) |
+| PostgreSQL | v14+ |
+| MongoDB | v6+ |
+| Redis | v7+ |
 
 ---
 
 ## Environment Variables
 
-Each service reads configuration from a `.env` file. Copy the provided example and fill in your values:
+For Docker, secrets can be overridden via a root `.env` file (template at `.env.example`):
 
 ```bash
-cp auth-service/.env.example     auth-service/.env
-cp employee-service/.env.example employee-service/.env
+cp .env.example .env   # then edit .env with real values
 ```
 
-### auth-service/.env
-
-| Variable | Default | Description |
+| Variable | Default (dev) | Description |
 |---|---|---|
-| `MONGO_URI` | `mongodb://localhost:27017/nexus_auth` | MongoDB connection string |
-| `JWT_SECRET` | `nexus_jwt_secret_change_in_production` | Secret used to sign JWTs — **change this** |
-| `PORT` | `3001` | Port the service listens on |
-
-### employee-service/.env
-
-| Variable | Default | Description |
-|---|---|---|
-| `DB_NAME` | `nexus_hr` | PostgreSQL database name |
-| `DB_USER` | `postgres` | PostgreSQL username |
+| `JWT_SECRET` | `nexus_jwt_secret_change_in_production` | Signs all JWTs — **must change in production** |
 | `DB_PASS` | `password` | PostgreSQL password |
-| `DB_HOST` | `localhost` | PostgreSQL host |
+| `POSTGRES_PASSWORD` | `password` | PostgreSQL root password |
+
+### Per-service variables (set in docker-compose.yml)
+
+**auth-service:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `MONGO_URI` | `mongodb://mongo:27017/nexus_auth` | MongoDB connection string |
+| `JWT_SECRET` | _(from root .env)_ | JWT signing secret |
+| `PORT` | `3001` | Service port |
+
+**employee-service:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `DB_HOST` | `postgres` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
-| `PORT` | `3002` | Port the service listens on |
+| `DB_NAME` | `nexus_hr` | Database name |
+| `DB_USER` | `postgres` | Database user |
+| `DB_PASS` | _(from root .env)_ | Database password |
+| `REDIS_URL` | `redis://redis:6379` | Redis connection string |
+| `PORT` | `3002` | Service port |
+
+**time-tracking-service:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `MONGO_URI` | `mongodb://mongo:27017/nexus_payroll` | MongoDB connection string |
+| `PORT` | `3005` | Service port |
 
 > `.env` files are in `.gitignore` — never commit them.
 
@@ -254,7 +313,22 @@ cp employee-service/.env.example employee-service/.env
 
 ## Running the Project
 
-Open **4 terminals** and run one command per terminal. Start the services before the frontend:
+### Docker (recommended)
+
+```bash
+docker compose up --build
+```
+
+| URL | Description |
+|---|---|
+| http://localhost | App (via Nginx) |
+| http://localhost:8080/api/docs | Swagger UI (OpenAPI 3.0) |
+| http://localhost:8080/health | Gateway health check |
+| http://localhost:8080/api/registry | Service registry |
+
+### Manual (development)
+
+Open 5 terminals:
 
 ```bash
 # Terminal 1 — Auth Service
@@ -263,159 +337,148 @@ cd auth-service && npm run dev
 # Terminal 2 — Employee Service
 cd employee-service && npm run dev
 
-# Terminal 3 — API Gateway
+# Terminal 3 — Time-Tracking Service
+cd time-tracking-service && npm run dev
+
+# Terminal 4 — API Gateway
 cd api-gateway && npm run dev
 
-# Terminal 4 — Frontend
+# Terminal 5 — Frontend
 cd frontend && npm run dev
 ```
 
-Expected output per terminal:
-
-| Service | Success message |
-|---|---|
-| Auth Service | `MongoDB connected successfully` → `Auth Service running on http://localhost:3001` |
-| Employee Service | `PostgreSQL connected successfully` → `Employee table synced` → `Employee Service running on http://localhost:3002` |
-| API Gateway | `API Gateway running on http://localhost:8080` |
-| Frontend | `Local: http://localhost:5173` |
-
 Open **http://localhost:5173** in your browser.
-
-### First-time: create your account
-
-The UI only has a login form. Register your first user via the API directly:
-
-```bash
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","email":"admin@nexushr.com","password":"password123"}'
-```
-
-Then log in through the browser at http://localhost:5173.
 
 ---
 
 ## API Reference
 
-All requests go through the **API Gateway on port 8080**.
+All requests go through the **API Gateway**. Versioned routes are preferred; legacy aliases also work.
 
-### Auth — `/api/auth`
+> Full interactive docs available at **http://localhost:8080/api/docs**
+
+### Auth — `/api/v1/auth` (or `/api/auth`)
 
 #### `POST /api/auth/register`
-Register a new user.
-
-**Request body:**
 ```json
-{
-  "username": "admin",
-  "email": "admin@nexushr.com",
-  "password": "password123"
-}
-```
+// Request
+{ "username": "jdoe", "email": "jdoe@nexushr.com", "password": "secret123" }
 
-**Response `201`:**
-```json
-{
-  "message": "User registered successfully",
-  "token": "<jwt>",
-  "user": { "id": "...", "username": "admin", "email": "admin@nexushr.com" }
-}
+// Response 201
+{ "token": "<15m JWT>", "refreshToken": "<7d token>", "user": { "id": "...", "username": "jdoe", "role": "employee" } }
 ```
-
----
 
 #### `POST /api/auth/login`
-Log in with an existing account.
+```json
+// Request
+{ "email": "jdoe@nexushr.com", "password": "secret123" }
 
-**Request body:**
+// Response 200
+{ "token": "<15m JWT>", "refreshToken": "<7d token>", "user": { ... } }
+```
+
+#### `POST /api/auth/refresh`
+```json
+// Request
+{ "refreshToken": "<token>" }
+
+// Response 200
+{ "token": "<new 15m JWT>" }
+```
+
+#### `POST /api/auth/logout`
+```json
+// Request
+{ "refreshToken": "<token>" }
+
+// Response 200
+{ "message": "Logged out successfully" }
+```
+
+---
+
+### Employees — `/api/v1/employees` (or `/api/employees`)
+
+All endpoints require `Authorization: Bearer <token>`. Responses include `_links` (HATEOAS).
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `GET` | `/employees` | any | List all employees (Redis cached 30s) |
+| `GET` | `/employees/me` | any | Current user's employee record |
+| `PUT` | `/employees/me` | any | Update own phone number |
+| `GET` | `/employees/:id` | any | Single employee |
+| `POST` | `/employees` | admin | Create employee |
+| `PUT` | `/employees/:id` | admin, manager | Update employee (managers: subordinates only, no salary) |
+| `DELETE` | `/employees/:id` | admin | Delete employee |
+
+**Sample response with HATEOAS:**
 ```json
 {
-  "email": "admin@nexushr.com",
-  "password": "password123"
+  "id": 1,
+  "firstName": "Carol",
+  "lastName": "White",
+  "email": "carol@nexushr.com",
+  "position": "Senior Software Engineer",
+  "status": "active",
+  "salary": 85000,
+  "department": { "id": 2, "name": "Engineering" },
+  "_links": {
+    "self":       { "href": "/api/v1/employees/1", "method": "GET" },
+    "update":     { "href": "/api/v1/employees/1", "method": "PUT" },
+    "delete":     { "href": "/api/v1/employees/1", "method": "DELETE" },
+    "collection": { "href": "/api/v1/employees",   "method": "GET" }
+  }
 }
 ```
 
-**Response `200`:**
+---
+
+### Departments — `/api/v1/departments` (or `/api/departments`)
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `GET` | `/departments` | any | List all departments with headcount (Redis cached 30s) |
+| `POST` | `/departments` | admin | Create department |
+| `DELETE` | `/departments/:id` | admin | Delete department (blocked if employees assigned) |
+
+---
+
+### Payroll — `/api/v1/payroll` (or `/api/payroll`)
+
+#### `POST /api/payroll/calculate`
+Requires authentication (JWT forwarded by gateway).
+
 ```json
+// Request
+{ "employeeName": "Carol White", "role": "Engineer", "hourlyRate": 45, "hoursWorked": 160 }
+
+// Response 200
 {
-  "message": "Login successful",
-  "token": "<jwt>",
-  "user": { "id": "...", "username": "admin", "email": "admin@nexushr.com" }
+  "header": { "company": "NEXUS HR SOLUTIONS", "report_type": "Monthly Payroll Statement", "date": "..." },
+  "employee_profile": { "full_name": "Carol White", "position": "Engineer" },
+  "financial_summary": {
+    "hours_logged": "160 hrs",
+    "rate_per_hour": "45 €",
+    "gross_total": "7200.00 €",
+    "deductions": "720.00 € (Tax 10%)",
+    "final_net_salary": "6480.00 €"
+  },
+  "status": "VERIFIED"
 }
 ```
 
 ---
 
-### Employees — `/api/employees`
+### Gateway Utilities
 
-#### `GET /api/employees`
-Returns all employees.
+| Path | Description |
+|---|---|
+| `GET /health` | Gateway liveness check |
+| `GET /api/registry` | Lists all registered microservices |
+| `GET /api/docs` | Swagger UI |
+| `GET /api/docs.json` | Raw OpenAPI 3.0 JSON |
 
-**Response `200`:**
-```json
-{
-  "status": "ok",
-  "employees": [
-    { "id": 1, "firstName": "Arber", "lastName": "Krasniqi", "email": "arber@nexushr.com", "department": "Engineering" }
-  ]
-}
-```
-
----
-
-#### `GET /api/employees/:id`
-Returns a single employee by ID.
-
----
-
-#### `POST /api/employees`
-Create a new employee.
-
-**Request body:**
-```json
-{
-  "firstName": "Arber",
-  "lastName": "Krasniqi",
-  "email": "arber@nexushr.com",
-  "department": "Engineering"
-}
-```
-
-**Response `201`:** The created employee object.
-
----
-
-#### `PUT /api/employees/:id`
-Update an employee. All fields are optional.
-
-**Request body (partial update):**
-```json
-{
-  "department": "HR"
-}
-```
-
-**Response `200`:** The updated employee object.
-
----
-
-#### `DELETE /api/employees/:id`
-Delete an employee.
-
-**Response `200`:**
-```json
-{ "message": "Employee deleted successfully" }
-```
-
----
-
-### Gateway
-
-#### `GET /health`
-Returns gateway status.
-```json
-{ "status": "ok", "service": "api-gateway", "timestamp": "..." }
-```
+All responses include the `X-API-Version: 1.0` header.
 
 ---
 
@@ -425,24 +488,30 @@ Returns gateway status.
 1. User submits login form
         │
         ▼
-2. Frontend POSTs credentials to /api/auth/login via API Gateway
+2. Frontend POSTs credentials → API Gateway → Auth Service
         │
         ▼
 3. Auth Service verifies password with bcrypt
         │
         ▼
-4. Auth Service returns a signed JWT (expires in 24h)
+4. Returns: access token (15 min JWT) + refresh token (7 days, stored in MongoDB)
         │
         ▼
-5. Frontend stores JWT in localStorage
+5. Zustand store (persisted to localStorage) holds user, token, refreshToken
         │
         ▼
-6. All subsequent requests include:
-   Authorization: Bearer <token>
-   (added automatically by the Axios interceptor in src/api/client.js)
+6. Every request: Axios interceptor attaches  Authorization: Bearer <token>
+        │
+        ▼
+7. API Gateway verifies JWT → injects X-User-Role + X-User-Email headers
+        │
+        ▼
+8. On 401: interceptor silently calls POST /api/auth/refresh,
+          updates Zustand store + localStorage, retries original request once
+        │
+        ▼
+9. On refresh failure: store cleared → redirect to /login
 ```
-
-> **Note:** The API Gateway currently proxies all requests without validating the JWT itself. Token validation happens inside each service. A shared auth middleware can be added to the gateway in a future phase.
 
 ---
 
@@ -455,18 +524,67 @@ Returns gateway status.
 | `username` | String | required, unique, trimmed |
 | `email` | String | required, unique, lowercase |
 | `password` | String | required, bcrypt hashed |
-| `createdAt` | Date | auto-set on create |
+| `role` | String | enum: admin/manager/employee, default: employee |
+| `createdAt` | Date | auto |
+
+### MongoDB — RefreshToken (`auth-service`)
+
+| Field | Type | Constraints |
+|---|---|---|
+| `token` | String | required, unique |
+| `userId` | ObjectId | ref: User |
+| `expiresAt` | Date | required — checked on every refresh |
 
 ### PostgreSQL — Employee (`employee-service`)
 
 | Field | Type | Constraints |
 |---|---|---|
-| `id` | Integer | auto-increment, primary key |
+| `id` | Integer | PK, auto-increment |
 | `firstName` | String | not null |
 | `lastName` | String | not null |
 | `email` | String | not null, unique |
-| `department` | String | default: `'General'` |
-| `createdAt` | Date | auto-managed by Sequelize |
-| `updatedAt` | Date | auto-managed by Sequelize |
+| `phone` | String | nullable |
+| `position` | String | nullable |
+| `status` | Enum | active / inactive / on_leave, default: active |
+| `hireDate` | Date | CHECK: ≤ today |
+| `salary` | Decimal | CHECK: ≥ 0 |
+| `departmentId` | Integer | FK → Departments (SET NULL on delete) |
+| `managerId` | Integer | FK → Employees self-reference (SET NULL on delete) |
 
-> The `Employees` table is created automatically on first startup via `sequelize.sync({ alter: true })`. No manual migrations needed during development.
+Indexes: `departmentId`, `managerId`, `status`, `hireDate`, `(lastName, firstName)`.
+
+### PostgreSQL — Department (`employee-service`)
+
+| Field | Type | Constraints |
+|---|---|---|
+| `id` | Integer | PK, auto-increment |
+| `name` | String | not null, unique |
+
+### PostgreSQL — employee_audit_log
+
+Populated automatically by the `trg_employee_audit` trigger on every `UPDATE` to `Employees` that changes `status` or `salary`.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | Serial | PK |
+| `employee_id` | Integer | References Employees |
+| `field_name` | Varchar | e.g. `status`, `salary` |
+| `old_value` | Text | Previous value |
+| `new_value` | Text | New value |
+| `changed_at` | Timestamptz | Auto-set |
+
+**Stored procedure:** `get_department_stats()` — returns `(dept_name, headcount, avg_salary)` per department.
+
+---
+
+## Testing
+
+```bash
+# Auth Service — 15 integration tests (Jest + Supertest, models mocked)
+cd auth-service && npm test
+
+# Employee Service — 13 integration tests (Jest + Supertest + SQLite in-memory)
+cd employee-service && npm test
+```
+
+Tests cover: registration (valid/duplicate/invalid), login (correct/wrong password/missing fields), token refresh (valid/expired/missing), logout, and full employee + department CRUD with role-based access checks.
