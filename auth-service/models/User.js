@@ -22,6 +22,14 @@ const UserSchema = new mongoose.Schema({
     enum: ['employee', 'manager', 'admin'],
     default: 'employee',
   },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  activationToken: { type: String },
+  activationTokenExpiry: { type: Date },
+  resetPasswordToken: { type: String },
+  resetPasswordExpiry: { type: Date },
   createdAt: {
     type: Date,
     default: Date.now,

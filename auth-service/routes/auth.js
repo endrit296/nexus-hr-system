@@ -1,16 +1,12 @@
-const express  = require('express');
-const bcrypt   = require('bcryptjs');
-const jwt      = require('jsonwebtoken');
-const crypto   = require('crypto');
-const Joi      = require('joi');
-const User         = require('../models/User');
-const RefreshToken = require('../models/RefreshToken');
+const express = require('express');
+const jwt     = require('jsonwebtoken');
+const Joi     = require('joi');
 
-const router = express.Router();
+const authService = require('../application/services/AuthService');
+const userService = require('../application/services/UserService');
 
-const JWT_SECRET          = process.env.JWT_SECRET || 'nexus_jwt_secret_change_in_production';
-const ACCESS_TOKEN_TTL    = '15m';                          // short-lived
-const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;     // 7 days in ms
+const router     = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'nexus_jwt_secret_change_in_production';
 
 // ── Validation schemas ───────────────────────────────────────────────────────
 
@@ -25,172 +21,167 @@ const loginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const signAccessToken = (user) =>
-  jwt.sign(
-    { userId: user._id, username: user.username, role: user.role || 'employee', email: user.email },
-    JWT_SECRET,
-    { expiresIn: ACCESS_TOKEN_TTL }
-  );
-
-const createRefreshToken = async (userId) => {
-  const token     = crypto.randomBytes(40).toString('hex');
-  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
-  await RefreshToken.create({ token, userId, expiresAt });
-  return token;
-};
-
-// ── POST /auth/register ──────────────────────────────────────────────────────
-
-router.post('/register', async (req, res) => {
-  const { error, value } = registerSchema.validate(req.body);
-  if (error) return res.status(400).json({ message: error.details[0].message });
-
-  const { username, email, password } = value;
-
-  try {
-    const existing = await User.findOne({ $or: [{ email }, { username }] });
-    if (existing) {
-      return res.status(409).json({ message: 'Username or email already in use' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email, password: hashedPassword });
-
-    const accessToken  = signAccessToken(user);
-    const refreshToken = await createRefreshToken(user._id);
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      token:        accessToken,
-      refreshToken,
-      user: { id: user._id, username: user.username, email: user.email, role: user.role },
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
+const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required(),
+  newPassword:     Joi.string().min(6).required(),
 });
 
-// ── POST /auth/login ─────────────────────────────────────────────────────────
-
-router.post('/login', async (req, res) => {
-  const { error, value } = loginSchema.validate(req.body);
-  if (error) return res.status(400).json({ message: error.details[0].message });
-
-  const { email, password } = value;
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
-
-    const accessToken  = signAccessToken(user);
-    const refreshToken = await createRefreshToken(user._id);
-
-    res.json({
-      message: 'Login successful',
-      token:        accessToken,
-      refreshToken,
-      user: { id: user._id, username: user.username, email: user.email, role: user.role },
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
+const resetPasswordSchema = Joi.object({
+  newPassword: Joi.string().min(6).required(),
 });
 
-// ── POST /auth/refresh ───────────────────────────────────────────────────────
-
-router.post('/refresh', async (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) {
-    return res.status(401).json({ message: 'Refresh token required' });
-  }
-
-  try {
-    const stored = await RefreshToken.findOne({ token: refreshToken });
-    if (!stored || stored.expiresAt < new Date()) {
-      return res.status(403).json({ message: 'Invalid or expired refresh token' });
-    }
-
-    const user = await User.findById(stored.userId);
-    if (!user) return res.status(403).json({ message: 'User not found' });
-
-    const newAccessToken = signAccessToken(user);
-
-    res.json({ token: newAccessToken });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().email().required(),
 });
 
-// ── Auth middleware (used only for admin routes below) ───────────────────────
+const roleSchema = Joi.object({
+  role: Joi.string().valid('employee', 'manager', 'admin').required(),
+});
 
-const verifyAdmin = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+// ── Middleware ───────────────────────────────────────────────────────────────
+
+const verifyAuth = (req, res, next) => {
+  const token = (req.headers['authorization'] || '').split(' ')[1];
   if (!token) return res.status(401).json({ message: 'No token provided' });
-
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ message: 'Admin access required' });
-    }
-    req.user = decoded;
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch {
     res.status(401).json({ message: 'Invalid or expired token' });
   }
 };
 
-// ── GET /auth/users — list all users (admin only) ────────────────────────────
+const verifyAdmin = (req, res, next) => {
+  verifyAuth(req, res, () => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+  });
+};
 
-router.get('/users', verifyAdmin, async (req, res) => {
+const ip = (req) => req.headers['x-forwarded-for'] || req.socket?.remoteAddress;
+
+const handle = (fn) => async (req, res) => {
   try {
-    const users = await User.find({}, { password: 0 }).sort({ createdAt: -1 });
-    res.json({ users });
+    const result = await fn(req);
+    res.status(result._status || 200).json(result);
   } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.status(err.status || 500).json({ message: err.message || 'Server error' });
   }
-});
+};
 
-// ── PUT /auth/users/:id/role — assign role (admin only) ──────────────────────
+// ── POST /auth/register ──────────────────────────────────────────────────────
 
-const roleSchema = Joi.object({
-  role: Joi.string().valid('employee', 'manager', 'admin').required(),
-});
+router.post('/register', handle(async (req) => {
+  const { error, value } = registerSchema.validate(req.body);
+  if (error) return Object.assign({ message: error.details[0].message }, { _status: 400 });
+  const result = await authService.register({ ...value, ipAddress: ip(req) });
+  return Object.assign(result, { _status: 201 });
+}));
 
-router.put('/users/:id/role', verifyAdmin, async (req, res) => {
-  const { error, value } = roleSchema.validate(req.body);
-  if (error) return res.status(400).json({ message: error.details[0].message });
+// ── POST /auth/login ─────────────────────────────────────────────────────────
 
-  try {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { role: value.role },
-      { new: true, select: '-password' }
-    );
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ message: 'Role updated', user });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
+router.post('/login', handle(async (req) => {
+  const { error, value } = loginSchema.validate(req.body);
+  if (error) return Object.assign({ message: error.details[0].message }, { _status: 400 });
+  return authService.login({ ...value, ipAddress: ip(req) });
+}));
 
 // ── POST /auth/logout ────────────────────────────────────────────────────────
 
-router.post('/logout', async (req, res) => {
+router.post('/logout', handle(async (req) => {
   const { refreshToken } = req.body;
+  const token = (req.headers['authorization'] || '').split(' ')[1];
+  let userId, username;
   try {
-    if (refreshToken) {
-      await RefreshToken.deleteOne({ token: refreshToken });
-    }
-    res.json({ message: 'Logged out successfully' });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
+    const decoded = token ? jwt.verify(token, JWT_SECRET) : null;
+    userId   = decoded?.userId;
+    username = decoded?.username;
+  } catch { /* token may be expired on logout — that's fine */ }
+  return authService.logout({ refreshToken, userId, username, ipAddress: ip(req) });
+}));
+
+// ── POST /auth/refresh ───────────────────────────────────────────────────────
+
+router.post('/refresh', handle(async (req) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) return Object.assign({ message: 'Refresh token required' }, { _status: 401 });
+  return authService.refresh({ refreshToken });
+}));
+
+// ── GET /auth/activate/:token ────────────────────────────────────────────────
+
+router.get('/activate/:token', handle(async (req) => {
+  return authService.activateAccount({ token: req.params.token });
+}));
+
+// ── POST /auth/forgot-password ───────────────────────────────────────────────
+
+router.post('/forgot-password', handle(async (req) => {
+  const { error, value } = forgotPasswordSchema.validate(req.body);
+  if (error) return Object.assign({ message: error.details[0].message }, { _status: 400 });
+  return authService.forgotPassword({ email: value.email });
+}));
+
+// ── POST /auth/reset-password/:token ─────────────────────────────────────────
+
+router.post('/reset-password/:token', handle(async (req) => {
+  const { error, value } = resetPasswordSchema.validate(req.body);
+  if (error) return Object.assign({ message: error.details[0].message }, { _status: 400 });
+  return authService.resetPassword({ token: req.params.token, newPassword: value.newPassword });
+}));
+
+// ── PUT /auth/change-password (requires auth) ────────────────────────────────
+
+router.put('/change-password', verifyAuth, handle(async (req) => {
+  const { error, value } = changePasswordSchema.validate(req.body);
+  if (error) return Object.assign({ message: error.details[0].message }, { _status: 400 });
+  return authService.changePassword({
+    userId:          req.user.userId,
+    currentPassword: value.currentPassword,
+    newPassword:     value.newPassword,
+    ipAddress:       ip(req),
+  });
+}));
+
+// ── GET /auth/users — list all users with pagination (admin only) ─────────────
+
+router.get('/users', verifyAdmin, handle(async (req) => {
+  const { page = 1, limit = 20, role } = req.query;
+  return userService.listUsers({ page, limit, role });
+}));
+
+// ── PUT /auth/users/:id/role — assign role (admin only) ──────────────────────
+
+router.put('/users/:id/role', verifyAdmin, handle(async (req) => {
+  const { error, value } = roleSchema.validate(req.body);
+  if (error) return Object.assign({ message: error.details[0].message }, { _status: 400 });
+  return userService.updateRole({
+    targetUserId:  req.params.id,
+    role:          value.role,
+    adminId:       req.user.userId,
+    adminUsername: req.user.username,
+    ipAddress:     ip(req),
+  });
+}));
+
+// ── DELETE /auth/users/:id — delete user (admin only) ────────────────────────
+
+router.delete('/users/:id', verifyAdmin, handle(async (req) => {
+  return userService.deleteUser({
+    targetUserId:  req.params.id,
+    adminId:       req.user.userId,
+    adminUsername: req.user.username,
+    ipAddress:     ip(req),
+  });
+}));
+
+// ── GET /auth/audit-logs — get audit trail (admin only) ──────────────────────
+
+router.get('/audit-logs', verifyAdmin, handle(async (req) => {
+  const { page = 1, limit = 50, userId, action } = req.query;
+  return userService.getAuditLogs({ page, limit, userId, action });
+}));
 
 module.exports = router;
