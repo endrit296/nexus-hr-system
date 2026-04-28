@@ -15,6 +15,13 @@ jest.mock('../cache', () => ({
   del: jest.fn().mockResolvedValue(null),
 }));
 
+// --- KJO ËSHTË PJESA E RE QË SHTOVA ---
+// Disable RabbitMQ — Mocking messenger.js to prevent connection errors
+jest.mock('../messenger', () => ({
+  sendToQueue: jest.fn().mockResolvedValue(true),
+}));
+// --------------------------------------
+
 const express    = require('express');
 const request    = require('supertest');
 const { sequelize } = require('../config/database');
@@ -22,7 +29,7 @@ const Employee   = require('../models/Employee');
 const Department = require('../models/Department');
 
 // Re-apply associations (normally in index.js, not in the route files)
-Department.hasMany(Employee, { foreignKey: 'departmentId', as: 'employees',   onDelete: 'SET NULL', hooks: true });
+Department.hasMany(Employee, { foreignKey: 'departmentId', as: 'employees',  onDelete: 'SET NULL', hooks: true });
 Employee.belongsTo(Department, { foreignKey: 'departmentId', as: 'department', onDelete: 'SET NULL', hooks: true });
 Employee.belongsTo(Employee, { foreignKey: 'managerId', as: 'manager',         onDelete: 'SET NULL', hooks: true });
 Employee.hasMany(Employee, { foreignKey: 'managerId', as: 'subordinates',      onDelete: 'SET NULL', hooks: true });
