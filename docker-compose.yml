@@ -31,10 +31,12 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:3001
       - EMPLOYEE_SERVICE_URL=http://employee-service:3002
       - PAYROLL_SERVICE_URL=http://time-tracking-service:3005
+      - RABBITMQ_URL=amqp://rabbitmq:5672
     depends_on:
       - auth-service
       - employee-service
       - time-tracking-service
+      - rabbitmq
     restart: unless-stopped
 
   # ── Time Tracking & Payroll Service (MODULI I RI) ──────────────────────────
@@ -48,8 +50,10 @@ services:
     environment:
       - MONGO_URI=mongodb://mongo:27017/nexus_payroll
       - PORT=3005
+      - RABBITMQ_URL=amqp://rabbitmq:5672
     depends_on:
       - mongo
+      - rabbitmq
     restart: unless-stopped
 
   # ── Auth Service (NoSQL — MongoDB) ───────────────────────────────────────────
@@ -59,10 +63,12 @@ services:
       - '3001'
     environment:
       - MONGO_URI=mongodb://mongo:27017/nexus_auth
-      - JWT_SECRET=${JWT_SECRET:-nexus_jwt_secret_change_in_production}  # override via .env in production
+      - JWT_SECRET=${JWT_SECRET:-nexus_jwt_secret_change_in_production}
       - PORT=3001
+      - RABBITMQ_URL=amqp://rabbitmq:5672
     depends_on:
       - mongo
+      - rabbitmq
     restart: unless-stopped
 
   # ── Employee Service (SQL — PostgreSQL) ──────────────────────────────────────
@@ -75,12 +81,14 @@ services:
       - DB_PORT=5432
       - DB_NAME=nexus_hr
       - DB_USER=postgres
-      - DB_PASS=${DB_PASS:-password}  # override via .env in production
+      - DB_PASS=${DB_PASS:-password}
       - PORT=3002
       - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://rabbitmq:5672
     depends_on:
       - postgres
       - redis
+      - rabbitmq
     restart: unless-stopped
 
   # ── Cache ─────────────────────────────────────────────────────────────────────
@@ -88,6 +96,17 @@ services:
     image: redis:7-alpine
     expose:
       - '6379'
+    restart: unless-stopped
+
+  # ── Message Broker (SHTESA E RE) ──────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: nexus-rabbitmq
+    expose:
+      - '5672'
+      - '15672'
+    ports:
+      - '15672:15672'
     restart: unless-stopped
 
   # ── Databases ────────────────────────────────────────────────────────────────
@@ -106,7 +125,7 @@ services:
     environment:
       - POSTGRES_DB=nexus_hr
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}  # override via .env in production
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped

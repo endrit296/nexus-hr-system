@@ -3,6 +3,7 @@ const Joi             = require('joi');
 const cache           = require('../cache');
 const { requireRole } = require('../middleware/auth');
 const employeeService = require('../application/services/EmployeeService');
+const { sendToQueue } = require('../messenger'); // <--- SHTESA 1
 
 const router   = express.Router();
 const BASE     = process.env.GATEWAY_URL || 'http://localhost:8080';
@@ -113,6 +114,10 @@ router.post('/', requireRole('admin'), handle(async (req, res) => {
   try {
     const employee = await employeeService.createEmployee(value);
     await cache.del(`employees:page:1:limit:20`);
+    
+    // SHTESA 2: Njoftojmë RabbitMQ
+    await sendToQueue('employee_events', { event: 'CREATED', data: employee });
+
     res.status(201).json(attachLinks(employee));
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
@@ -148,6 +153,10 @@ router.put('/:id', requireRole('admin', 'manager'), handle(async (req, res) => {
   try {
     const updated = await employeeService.updateEmployee(req.params.id, value);
     await cache.del(`employees:page:1:limit:20`);
+    
+    // SHTESA 3: Njoftojmë RabbitMQ
+    await sendToQueue('employee_events', { event: 'UPDATED', data: updated });
+
     res.json(attachLinks(updated));
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
@@ -162,6 +171,10 @@ router.put('/:id', requireRole('admin', 'manager'), handle(async (req, res) => {
 router.delete('/:id', requireRole('admin'), handle(async (req) => {
   const result = await employeeService.deleteEmployee(req.params.id);
   await cache.del(`employees:page:1:limit:20`);
+  
+  // SHTESA 4: Njoftojmë RabbitMQ
+  await sendToQueue('employee_events', { event: 'DELETED', data: { id: req.params.id } });
+
   return result;
 }));
 

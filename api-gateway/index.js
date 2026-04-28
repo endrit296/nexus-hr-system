@@ -1,11 +1,12 @@
-const express      = require('express');
-const cors         = require('cors');
-const jwt          = require('jsonwebtoken');
-const rateLimit    = require('express-rate-limit');
-const morgan       = require('morgan');
-const swaggerUi    = require('swagger-ui-express');
+const breaker = require('./breaker');
+const express       = require('express');
+const cors          = require('cors');
+const jwt           = require('jsonwebtoken');
+const rateLimit     = require('express-rate-limit');
+const morgan        = require('morgan');
+const swaggerUi     = require('swagger-ui-express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const logger       = require('./logger');
+const logger        = require('./logger');
 const { swaggerSpec } = require('./swagger');
 
 const app  = express();
@@ -45,7 +46,6 @@ const generalLimiter = rateLimit({
 
 app.use(generalLimiter);
 
-// Rate-limit auth login/register on both v1 and legacy paths
 app.use(
   ['/api/auth/login', '/api/auth/register', '/api/v1/auth/login', '/api/v1/auth/register'],
   authLimiter
@@ -76,7 +76,6 @@ const isPublic = (req) =>
 const verifyToken = (req, res, next) => {
   if (isPublic(req)) return next();
 
-  // Auth-service admin routes self-protect; pass them through
   if (req.path.startsWith('/api/auth/') || req.path.startsWith('/api/v1/auth/')) return next();
 
   const token = req.headers['authorization']?.split(' ')[1];
@@ -96,25 +95,41 @@ const verifyToken = (req, res, next) => {
 
 app.use(verifyToken);
 
-// ── Proxy factory ─────────────────────────────────────────────────────────────
+// ── Proxy factory (UPDATED WITH CIRCUIT BREAKER) ──────────────────────────────
 const makeProxy = (target, targetPrefix) =>
   createProxyMiddleware({
     target,
     changeOrigin: true,
     pathRewrite: (path) => targetPrefix + (path === '/' ? '' : path),
+    // Integrimi i Circuit Breaker
+    onProxyReq: async (proxyReq, req, res) => {
+      try {
+        // Kontrollojmë shërbimin target përmes breaker
+        await breaker.fire({ method: req.method, url: target });
+      } catch (err) {
+        // Nëse breaker është i hapur (shërbimi target është down)
+        if (!res.headersSent) {
+          res.status(503).json({ 
+            status: 'error', 
+            message: 'Service temporarily unavailable (Circuit Breaker Active)' 
+          });
+        }
+        proxyReq.destroy(); // Ndalojmë kërkesën
+      }
+    }
   });
 
 // ── v1 versioned proxy routes ─────────────────────────────────────────────────
-app.use('/api/v1/auth',        makeProxy(AUTH_SERVICE,     '/auth'));
-app.use('/api/v1/employees',   makeProxy(EMPLOYEE_SERVICE, '/employees'));
-app.use('/api/v1/departments', makeProxy(EMPLOYEE_SERVICE, '/departments'));
-app.use('/api/v1/payroll',     makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
+app.use('/api/v1/auth',         makeProxy(AUTH_SERVICE,     '/auth'));
+app.use('/api/v1/employees',    makeProxy(EMPLOYEE_SERVICE, '/employees'));
+app.use('/api/v1/departments',  makeProxy(EMPLOYEE_SERVICE, '/departments'));
+app.use('/api/v1/payroll',      makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
 
-// ── Legacy /api/* routes (aliases — keep backward compatibility) ──────────────
-app.use('/api/auth',        makeProxy(AUTH_SERVICE,     '/auth'));
-app.use('/api/employees',   makeProxy(EMPLOYEE_SERVICE, '/employees'));
-app.use('/api/departments', makeProxy(EMPLOYEE_SERVICE, '/departments'));
-app.use('/api/payroll',     makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
+// ── Legacy /api/* routes (aliases) ───────────────────────────────────────────
+app.use('/api/auth',         makeProxy(AUTH_SERVICE,     '/auth'));
+app.use('/api/employees',    makeProxy(EMPLOYEE_SERVICE, '/employees'));
+app.use('/api/departments',  makeProxy(EMPLOYEE_SERVICE, '/departments'));
+app.use('/api/payroll',      makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
 
 // ── Service registry ──────────────────────────────────────────────────────────
 app.get('/api/registry', (_req, res) => {

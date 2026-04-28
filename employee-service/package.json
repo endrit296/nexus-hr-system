@@ -9,13 +9,16 @@
     "test": "jest --testEnvironment node --forceExit"
   },
   "jest": {
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
     "testTimeout": 15000
   },
   "dependencies": {
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "ioredis": "^5.3.2",
+    "express-rate-limit": "^8.4.1",
+    "ioredis": "^5.10.1",
     "joi": "^17.11.0",
     "morgan": "^1.10.0",
     "pg": "^8.11.3",
