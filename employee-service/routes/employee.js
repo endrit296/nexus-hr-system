@@ -137,7 +137,10 @@ router.put('/:id', requireRole('admin', 'manager'), handle(async (req, res) => {
   if (error) return res.status(400).json({ message: error.details[0].message });
 
   if (role === 'manager') {
-    const managerRecord = await employeeService.getEmployeeByEmail(userEmail).catch(() => null);
+    const managerRecord = await employeeService.getEmployeeByEmail(userEmail).catch((err) => {
+      if (err.status === 404) return null;
+      throw err;
+    });
     if (!managerRecord) {
       return res.status(403).json({ message: 'Your account is not linked to an employee record' });
     }

@@ -61,6 +61,13 @@ router.get('/', handle(async (req, res) => {
   return body;
 }));
 
+// ── GET /departments/:id ─────────────────────────────────────────────────────
+
+router.get('/:id', handle(async (req) => {
+  const dept = await departmentService.getDepartment(req.params.id);
+  return { ...dept.toJSON(), _links: deptLinks(dept) };
+}));
+
 // ── POST /departments — admin only ───────────────────────────────────────────
 
 router.post('/', requireRole('admin'), handle(async (req, res) => {

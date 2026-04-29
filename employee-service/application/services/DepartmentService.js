@@ -7,6 +7,12 @@ class DepartmentService {
     return departmentRepository.findAll({ page, limit, search });
   }
 
+  async getDepartment(id) {
+    const dept = await departmentRepository.findById(id);
+    if (!dept) throw serviceError('Department not found', 404);
+    return dept;
+  }
+
   async createDepartment(data) {
     return departmentRepository.create(data);
   }

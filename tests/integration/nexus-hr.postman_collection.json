@@ -109,12 +109,12 @@
                   "pm.test('Login returns 200 with tokens', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body).to.have.property('accessToken');",
+                  "  pm.expect(body).to.have.property('token');",
                   "  pm.expect(body).to.have.property('refreshToken');",
-                  "  pm.collectionVariables.set('accessToken',  body.accessToken);",
+                  "  pm.collectionVariables.set('accessToken',  body.token);",
                   "  pm.collectionVariables.set('refreshToken', body.refreshToken);",
                   "  if (body.user && body.user.id) {",
-                  "    pm.collectionVariables.set('userId', body.user.id);",
+                  "    pm.collectionVariables.set('userId', String(body.user.id));",
                   "  }",
                   "});"
                 ]
@@ -163,8 +163,8 @@
                   "pm.test('Refresh returns new accessToken', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body).to.have.property('accessToken');",
-                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "  pm.expect(body).to.have.property('token');",
+                  "  pm.collectionVariables.set('accessToken', body.token);",
                   "});"
                 ]
               }

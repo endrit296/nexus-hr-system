@@ -1,4 +1,5 @@
 const { Sequelize } = require('sequelize');
+const logger        = require('../logger');
 require('dotenv').config();
 
 // PostgreSQL connection string — update these values in a .env file
@@ -18,9 +19,9 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log('PostgreSQL connected successfully');
+    logger.info('PostgreSQL connected successfully');
   } catch (error) {
-    console.error('PostgreSQL connection error:', error.message);
+    logger.error(`PostgreSQL connection error: ${error.message}`);
   }
 };
 

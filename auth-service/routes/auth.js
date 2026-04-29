@@ -64,8 +64,10 @@ const ip = (req) => req.headers['x-forwarded-for'] || req.socket?.remoteAddress;
 
 const handle = (fn) => async (req, res) => {
   try {
-    const result = await fn(req);
-    res.status(result._status || 200).json(result);
+    const result  = await fn(req);
+    const status  = result._status || 200;
+    const { _status, ...body } = result;
+    res.status(status).json(body);
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message || 'Server error' });
   }

@@ -105,29 +105,32 @@ function buildHireData(employees) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function DashboardHome() {
-  const [employees, setEmployees]     = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading]         = useState(true);
+  const [employees, setEmployees]         = useState([]);
+  const [departments, setDepartments]     = useState([]);
+  const [totalEmployees, setTotalEmployees] = useState(0);
+  const [loading, setLoading]             = useState(true);
 
   useEffect(() => {
     Promise.all([
-      client.get('/api/employees'),
+      client.get('/api/employees?limit=500'),
       client.get('/api/departments'),
     ]).then(([empRes, deptRes]) => {
-      setEmployees(empRes.data.employees    || []);
+      setEmployees(empRes.data.employees          || []);
       setDepartments(deptRes.data.departments || []);
+      // Use server-reported total so the stat card is accurate even if limit caps results
+      setTotalEmployees(empRes.data.pagination?.total ?? (empRes.data.employees?.length || 0));
     }).catch(() => showError('Failed to load dashboard data'))
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Spinner />;
 
-  const total     = employees.length;
+  const total     = totalEmployees;
   const active    = employees.filter((e) => e.status === 'active').length;
   const onLeave   = employees.filter((e) => e.status === 'on_leave').length;
   const deptCount = departments.length;
 
-  const recent     = [...employees].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+  const recent     = [...employees].sort((a, b) => new Date(b.createdAt || b.hireDate || 0) - new Date(a.createdAt || a.hireDate || 0)).slice(0, 5);
   const statusData = buildStatusData(employees);
   const deptData   = buildDeptData(employees, departments);
   const hireData   = buildHireData(employees);

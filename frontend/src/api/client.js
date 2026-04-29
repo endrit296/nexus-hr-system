@@ -24,11 +24,12 @@ client.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    // Only attempt refresh once, and not for auth endpoints themselves
+    // Only attempt refresh once; exclude the endpoints that don't use access tokens
+    const AUTH_NO_REFRESH = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/logout'];
     if (
       error.response?.status === 401 &&
       !original._retried &&
-      !original.url.includes('/api/auth/')
+      !AUTH_NO_REFRESH.some((p) => original.url?.includes(p))
     ) {
       original._retried = true;
 
