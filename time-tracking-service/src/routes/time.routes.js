@@ -1,7 +1,8 @@
-const express = require('express');
-const router = express.Router();
+const express        = require('express');
+const router         = express.Router();
 const timeController = require('../controllers/time.controller');
 
-router.post('/calculate', timeController.processSalary);
+router.post('/calculate',          timeController.processSalary);
+router.get('/employee/:id',        timeController.getEmployeePayroll);
 
 module.exports = router;

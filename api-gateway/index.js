@@ -1,13 +1,16 @@
-const breaker = require('./breaker');
-const express       = require('express');
-const cors          = require('cors');
-const jwt           = require('jsonwebtoken');
-const rateLimit     = require('express-rate-limit');
-const morgan        = require('morgan');
-const swaggerUi     = require('swagger-ui-express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
-const logger        = require('./logger');
-const { swaggerSpec } = require('./swagger');
+const { getBreakerFor }         = require('./breaker');
+const { register: regService,
+        heartbeat: hbService,
+        getAll: getAllServices }   = require('./registry');
+const express                     = require('express');
+const cors                        = require('cors');
+const jwt                         = require('jsonwebtoken');
+const rateLimit                   = require('express-rate-limit');
+const morgan                      = require('morgan');
+const swaggerUi                   = require('swagger-ui-express');
+const { createProxyMiddleware }   = require('http-proxy-middleware');
+const logger                      = require('./logger');
+const { swaggerSpec }             = require('./swagger');
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
@@ -45,7 +48,6 @@ const generalLimiter = rateLimit({
 });
 
 app.use(generalLimiter);
-
 app.use(
   ['/api/auth/login', '/api/auth/register', '/api/v1/auth/login', '/api/v1/auth/register'],
   authLimiter
@@ -57,25 +59,35 @@ app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 
 // ── Public paths (skip JWT check) ────────────────────────────────────────────
 const PUBLIC_PATHS = [
-  { method: 'POST', path: '/api/auth/login'       },
-  { method: 'POST', path: '/api/auth/register'    },
-  { method: 'POST', path: '/api/auth/refresh'     },
-  { method: 'POST', path: '/api/auth/logout'      },
-  { method: 'POST', path: '/api/v1/auth/login'    },
-  { method: 'POST', path: '/api/v1/auth/register' },
-  { method: 'POST', path: '/api/v1/auth/refresh'  },
-  { method: 'POST', path: '/api/v1/auth/logout'   },
-  { method: 'GET',  path: '/api/registry'         },
-  { method: 'GET',  path: '/health'               },
+  { method: 'POST', path: '/api/auth/login'              },
+  { method: 'POST', path: '/api/auth/register'           },
+  { method: 'POST', path: '/api/auth/refresh'            },
+  { method: 'POST', path: '/api/auth/logout'             },
+  { method: 'POST', path: '/api/auth/forgot-password'    },
+  { method: 'POST', path: '/api/v1/auth/login'           },
+  { method: 'POST', path: '/api/v1/auth/register'        },
+  { method: 'POST', path: '/api/v1/auth/refresh'         },
+  { method: 'POST', path: '/api/v1/auth/logout'          },
+  { method: 'POST', path: '/api/v1/auth/forgot-password' },
+  { method: 'GET',  path: '/api/registry'           },
+  { method: 'POST', path: '/api/registry/register'  },
+  { method: 'POST', path: '/api/registry/heartbeat' },
+  { method: 'GET',  path: '/health'                 },
 ];
 
-const isPublic = (req) =>
-  PUBLIC_PATHS.some((p) => p.method === req.method && req.path === p.path);
+const isPublic = (req) => {
+  // All activate and reset-password paths are public (contain dynamic token segments)
+  if (req.path.startsWith('/api/auth/activate/'))       return true;
+  if (req.path.startsWith('/api/v1/auth/activate/'))    return true;
+  if (req.path.startsWith('/api/auth/reset-password/')) return true;
+  if (req.path.startsWith('/api/v1/auth/reset-password/')) return true;
+  return PUBLIC_PATHS.some((p) => p.method === req.method && req.path === p.path);
+};
 
-// ── JWT verification middleware ──────────────────────────────────────────────
+// ── JWT verification middleware ───────────────────────────────────────────────
 const verifyToken = (req, res, next) => {
   if (isPublic(req)) return next();
-
+  // Auth service manages its own token verification for /api/auth/* routes
   if (req.path.startsWith('/api/auth/') || req.path.startsWith('/api/v1/auth/')) return next();
 
   const token = req.headers['authorization']?.split(' ')[1];
@@ -95,53 +107,79 @@ const verifyToken = (req, res, next) => {
 
 app.use(verifyToken);
 
-// ── Proxy factory (UPDATED WITH CIRCUIT BREAKER) ──────────────────────────────
-const makeProxy = (target, targetPrefix) =>
-  createProxyMiddleware({
+// ── Proxy factory with Circuit Breaker (http-proxy-middleware v3) ─────────────
+//
+// How it works:
+//   1. Before each request, check if the breaker for that service is OPEN.
+//      If open → return 503 immediately (no request sent downstream).
+//   2. If CLOSED/HALF-OPEN → forward the request via the proxy.
+//   3. If the proxy gets a network error (service is unreachable), fire the
+//      health-check probe so opossum can count failures and open the circuit
+//      once the error threshold is crossed.
+const makeProxy = (target, targetPrefix) => {
+  const cb = getBreakerFor(target);
+
+  const proxy = createProxyMiddleware({
     target,
     changeOrigin: true,
     pathRewrite: (path) => targetPrefix + (path === '/' ? '' : path),
-    // Integrimi i Circuit Breaker
-    onProxyReq: async (proxyReq, req, res) => {
-      try {
-        // Kontrollojmë shërbimin target përmes breaker
-        await breaker.fire({ method: req.method, url: target });
-      } catch (err) {
-        // Nëse breaker është i hapur (shërbimi target është down)
+    on: {
+      // v3 event: fires when the downstream service cannot be reached
+      error: (err, req, res) => {
+        // Fire health probe to register a failure with opossum
+        cb.fire().catch(() => {});
+        logger.error(`[Proxy] ${target} unreachable: ${err.message}`);
         if (!res.headersSent) {
-          res.status(503).json({ 
-            status: 'error', 
-            message: 'Service temporarily unavailable (Circuit Breaker Active)' 
-          });
+          res.status(503).json({ status: 'error', message: 'Service temporarily unavailable' });
         }
-        proxyReq.destroy(); // Ndalojmë kërkesën
-      }
-    }
-  });
-
-// ── v1 versioned proxy routes ─────────────────────────────────────────────────
-app.use('/api/v1/auth',         makeProxy(AUTH_SERVICE,     '/auth'));
-app.use('/api/v1/employees',    makeProxy(EMPLOYEE_SERVICE, '/employees'));
-app.use('/api/v1/departments',  makeProxy(EMPLOYEE_SERVICE, '/departments'));
-app.use('/api/v1/payroll',      makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
-
-// ── Legacy /api/* routes (aliases) ───────────────────────────────────────────
-app.use('/api/auth',         makeProxy(AUTH_SERVICE,     '/auth'));
-app.use('/api/employees',    makeProxy(EMPLOYEE_SERVICE, '/employees'));
-app.use('/api/departments',  makeProxy(EMPLOYEE_SERVICE, '/departments'));
-app.use('/api/payroll',      makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
-
-// ── Service registry ──────────────────────────────────────────────────────────
-app.get('/api/registry', (_req, res) => {
-  res.json({
-    version:   '1.0',
-    discovery: 'docker-dns',
-    services: {
-      'auth-service':     { url: AUTH_SERVICE,     endpoints: ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'] },
-      'employee-service': { url: EMPLOYEE_SERVICE, endpoints: ['/employees', '/departments'] },
-      'payroll-service':  { url: PAYROLL_SERVICE,  endpoints: ['/api/payroll/calculate'] },
+      },
     },
   });
+
+  // Middleware wrapper — checks circuit state before forwarding
+  return (req, res, next) => {
+    if (cb.opened) {
+      return res.status(503).json({
+        status:  'error',
+        message: 'Service temporarily unavailable (Circuit Breaker Active)',
+      });
+    }
+    proxy(req, res, next);
+  };
+};
+
+// ── v1 versioned proxy routes ─────────────────────────────────────────────────
+app.use('/api/v1/auth',        makeProxy(AUTH_SERVICE,     '/auth'));
+app.use('/api/v1/employees',   makeProxy(EMPLOYEE_SERVICE, '/employees'));
+app.use('/api/v1/departments', makeProxy(EMPLOYEE_SERVICE, '/departments'));
+app.use('/api/v1/payroll',     makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
+
+// ── Legacy /api/* routes (aliases) ───────────────────────────────────────────
+app.use('/api/auth',        makeProxy(AUTH_SERVICE,     '/auth'));
+app.use('/api/employees',   makeProxy(EMPLOYEE_SERVICE, '/employees'));
+app.use('/api/departments', makeProxy(EMPLOYEE_SERVICE, '/departments'));
+app.use('/api/payroll',     makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
+
+// ── Dynamic Service Registry ──────────────────────────────────────────────────
+app.use(express.json());
+
+app.post('/api/registry/register', (req, res) => {
+  const { name, url } = req.body || {};
+  if (!name || !url) return res.status(400).json({ message: 'name and url are required' });
+  regService(name, url);
+  res.json({ message: `${name} registered` });
+});
+
+app.post('/api/registry/heartbeat', (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ message: 'name is required' });
+  const found = hbService(name);
+  if (!found) return res.status(404).json({ message: `${name} not registered` });
+  res.json({ message: `heartbeat accepted for ${name}` });
+});
+
+app.get('/api/registry', (_req, res) => {
+  res.json({ version: '1.0', discovery: 'dynamic', services: getAllServices() });
 });
 
 // ── Root & health ─────────────────────────────────────────────────────────────

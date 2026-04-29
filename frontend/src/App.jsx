@@ -1,9 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import Login from './components/Login';
-import Layout from './components/Layout';
-import useAuthStore from './store/useAuthStore';
-import client from './api/client';
+import Login              from './components/Login';
+import Layout             from './components/Layout';
+import ActivatePage       from './pages/ActivatePage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage  from './pages/ResetPasswordPage';
+import useAuthStore       from './store/useAuthStore';
+import client             from './api/client';
 
 function App() {
   const { user, login, logout } = useAuthStore();
@@ -44,15 +47,14 @@ function App() {
       />
 
       <Routes>
-        <Route
-          path="/login"
-          element={!user ? <Login onLogin={handleLogin} /> : <Navigate replace to="/dashboard" />}
-        />
+        {/* ── Public auth routes (no login required) ── */}
+        <Route path="/login"                   element={!user ? <Login onLogin={handleLogin} /> : <Navigate replace to="/dashboard" />} />
+        <Route path="/activate/:token"         element={<ActivatePage />} />
+        <Route path="/forgot-password"         element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token"   element={<ResetPasswordPage />} />
 
-        <Route
-          path="/*"
-          element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />}
-        />
+        {/* ── Protected app routes ── */}
+        <Route path="/*" element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate replace to="/login" />} />
       </Routes>
     </>
   );

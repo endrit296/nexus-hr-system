@@ -6,13 +6,22 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "jest --testEnvironment node --forceExit"
+    "test": "jest --testEnvironment node --forceExit",
+    "test:coverage": "jest --testEnvironment node --forceExit --coverage"
   },
   "jest": {
-    "testMatch": [
-      "**/tests/**/*.test.js"
+    "testMatch": ["**/tests/**/*.test.js"],
+    "testTimeout": 120000,
+    "collectCoverageFrom": [
+      "routes/**/*.js",
+      "application/**/*.js",
+      "infrastructure/**/*.js",
+      "domain/**/*.js",
+      "models/**/*.js"
     ],
-    "testTimeout": 120000
+    "coverageThreshold": {
+      "global": { "lines": 80, "functions": 80 }
+    }
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

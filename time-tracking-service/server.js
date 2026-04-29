@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const timeRoutes = require('./src/routes/time.routes');
 const logger     = require('./src/logger');
+const { register, startHeartbeat } = require('./src/registerService');
 
 const app  = express();
 const PORT = process.env.PORT || 3005;
@@ -23,4 +24,10 @@ app.use('/api/payroll', (req, res, next) => {
 
 app.use('/api/payroll', timeRoutes);
 
-app.listen(PORT, () => logger.info(`Time-Tracking Service running on http://localhost:${PORT}`));
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'time-tracking-service' }));
+
+app.listen(PORT, async () => {
+  logger.info(`Time-Tracking Service running on http://localhost:${PORT}`);
+  await register();
+  startHeartbeat();
+});

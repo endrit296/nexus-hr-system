@@ -5,6 +5,7 @@ import RoleBadge from '../components/ui/RoleBadge';
 import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
+import ConfirmModal from '../modals/ConfirmModal';
 import { showSuccess, showError } from '../utils/toast';
 
 const ROLES = ['employee', 'manager', 'admin'];
@@ -15,13 +16,21 @@ const ChevronIcon = () => (
   </svg>
 );
 
+const DeleteIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+  </svg>
+);
+
 function UserManagementPage({ currentUserId }) {
-  const [users, setUsers]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
-  const [saving, setSaving]   = useState({});
-  const [pending, setPending] = useState({});
-  const [saved, setSaved]     = useState({});
+  const [users, setUsers]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
+  const [saving, setSaving]       = useState({});
+  const [pending, setPending]     = useState({});
+  const [saved, setSaved]         = useState({});
+  const [confirmId, setConfirmId] = useState(null);
+  const [deleting, setDeleting]   = useState(false);
 
   const fetchUsers = () =>
     client.get('/api/auth/users')
@@ -44,13 +53,17 @@ function UserManagementPage({ currentUserId }) {
   const handleSave = (userId) => {
     setSaving((prev) => ({ ...prev, [userId]: true }));
     client.put(`/api/auth/users/${userId}/role`, { role: pending[userId] })
-      .then(() => {
-        setSaved((prev) => ({ ...prev, [userId]: true }));
-        showSuccess('Role updated successfully.');
-        fetchUsers();
-      })
+      .then(() => { setSaved((prev) => ({ ...prev, [userId]: true })); showSuccess('Role updated successfully.'); fetchUsers(); })
       .catch((err) => showError(err.response?.data?.message || 'Failed to update role'))
       .finally(() => setSaving((prev) => ({ ...prev, [userId]: false })));
+  };
+
+  const handleDelete = () => {
+    setDeleting(true);
+    client.delete(`/api/auth/users/${confirmId}`)
+      .then(() => { setConfirmId(null); fetchUsers(); showSuccess('User deleted successfully.'); })
+      .catch((err) => showError(err.response?.data?.message || 'Failed to delete user'))
+      .finally(() => setDeleting(false));
   };
 
   if (loading) return <Spinner />;
@@ -70,6 +83,9 @@ function UserManagementPage({ currentUserId }) {
                 {u.username}
                 {isSelf && <span className="ml-1.5 text-xs text-slate-400 font-normal normal-case">(you)</span>}
               </div>
+              {u.isVerified === false && (
+                <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded">Unverified</span>
+              )}
             </div>
           </div>
         );
@@ -97,9 +113,7 @@ function UserManagementPage({ currentUserId }) {
                 <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
               ))}
             </select>
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-              <ChevronIcon />
-            </span>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><ChevronIcon /></span>
           </div>
         );
       },
@@ -107,11 +121,7 @@ function UserManagementPage({ currentUserId }) {
     {
       key: 'createdAt',
       label: 'Registered',
-      render: (u) => (
-        <span className="text-sm text-slate-500">
-          {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
-        </span>
-      ),
+      render: (u) => <span className="text-sm text-slate-500">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</span>,
     },
     {
       key: 'action',
@@ -123,14 +133,19 @@ function UserManagementPage({ currentUserId }) {
         const isSaving  = saving[u._id];
         const justSaved = saved[u._id] && !isDirty;
         return (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => handleSave(u._id)}
-            disabled={!isDirty || isSaving}
-          >
-            {isSaving ? 'Saving…' : justSaved ? 'Saved ✓' : 'Save'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="primary" size="sm" onClick={() => handleSave(u._id)} disabled={!isDirty || isSaving}>
+              {isSaving ? 'Saving…' : justSaved ? 'Saved ✓' : 'Save'}
+            </Button>
+            <Button
+              variant="ghost" size="sm"
+              className="hover:text-red-600 hover:bg-red-50"
+              title="Delete user"
+              onClick={() => setConfirmId(u._id)}
+            >
+              <DeleteIcon />
+            </Button>
+          </div>
         );
       },
     },
@@ -138,7 +153,6 @@ function UserManagementPage({ currentUserId }) {
 
   return (
     <>
-      {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">User Management</h1>
@@ -148,11 +162,17 @@ function UserManagementPage({ currentUserId }) {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={users}
-        emptyMessage="No users found."
-      />
+      <DataTable columns={columns} data={users} emptyMessage="No users found." />
+
+      {confirmId && (
+        <ConfirmModal
+          title="Delete User"
+          message="Are you sure you want to delete this user? Their account will be permanently removed and all sessions revoked."
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmId(null)}
+          loading={deleting}
+        />
+      )}
     </>
   );
 }
