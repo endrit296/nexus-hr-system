@@ -24,7 +24,6 @@ const UserSchema = new mongoose.Schema({
   },
   isVerified: {
     type: Boolean,
-    default: false,
   },
   activationToken: { type: String },
   activationTokenExpiry: { type: Date },
