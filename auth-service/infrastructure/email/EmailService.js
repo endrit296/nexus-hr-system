@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const logger     = require('../../logger');
 
 class EmailService {
   constructor() {
@@ -22,8 +23,8 @@ class EmailService {
 
   async send({ to, subject, html }) {
     if (!this.transporter) {
-      console.log(`[EmailService] To: ${to} | Subject: ${subject}`);
-      console.log(`[EmailService] Body: ${html}`);
+      logger.warn(`[EmailService] No SMTP configured — email NOT sent. To: ${to} | Subject: ${subject}`);
+      logger.info(`[EmailService] Body preview: ${html.replace(/<[^>]+>/g, '').slice(0, 200)}`);
       return;
     }
     await this.transporter.sendMail({ from: this.fromEmail, to, subject, html });

@@ -57,6 +57,13 @@ services:
       - GATEWAY_HOST=api-gateway
       - GATEWAY_PORT=8080
       - SERVICE_URL=http://auth-service:3001
+      - APP_URL=${APP_URL:-http://localhost}
+      - FROM_EMAIL=${FROM_EMAIL:-noreply@nexus-hr.com}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
     depends_on:
       mongo:
         condition: service_healthy
