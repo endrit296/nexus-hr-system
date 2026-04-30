@@ -5,7 +5,7 @@ const protoLoader = require('@grpc/proto-loader');
 const employeeService = require('../application/services/EmployeeService');
 const logger      = require('../logger');
 
-const PROTO_PATH = path.resolve(__dirname, '../../docs/grpc/employees.proto');
+const PROTO_PATH = path.join(__dirname, 'employees.proto');
 
 const pkgDef = protoLoader.loadSync(PROTO_PATH, {
   keepCase:  false,

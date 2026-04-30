@@ -4,7 +4,7 @@ const grpc        = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
 const logger      = require('../logger');
 
-const PROTO_PATH    = path.resolve(__dirname, '../../../docs/grpc/employees.proto');
+const PROTO_PATH    = path.join(__dirname, 'employees.proto');
 const EMPLOYEE_GRPC = process.env.EMPLOYEE_GRPC_URL || 'localhost:50051';
 
 const pkgDef = protoLoader.loadSync(PROTO_PATH, {
