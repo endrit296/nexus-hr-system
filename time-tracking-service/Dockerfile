@@ -1,5 +1,5 @@
 # Përdorim versionin e fundit të qëndrueshëm të Node.js
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Caktojmë folderin e punës brenda kontinerit
 WORKDIR /app

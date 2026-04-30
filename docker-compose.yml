@@ -28,32 +28,20 @@ services:
       - '8080'
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-nexus_jwt_secret_change_in_production}
       - AUTH_SERVICE_URL=http://auth-service:3001
       - EMPLOYEE_SERVICE_URL=http://employee-service:3002
       - PAYROLL_SERVICE_URL=http://time-tracking-service:3005
       - RABBITMQ_URL=amqp://rabbitmq:5672
     depends_on:
-      - auth-service
-      - employee-service
-      - time-tracking-service
-      - rabbitmq
-    restart: unless-stopped
-
-  # ── Time Tracking & Payroll Service (MODULI I RI) ──────────────────────────
-  time-tracking-service:
-    build: ./time-tracking-service
-    container_name: time-tracking-service
-    expose:
-      - '3005'
-    ports:
-      - '3005:3005'
-    environment:
-      - MONGO_URI=mongodb://mongo:27017/nexus_payroll
-      - PORT=3005
-      - RABBITMQ_URL=amqp://rabbitmq:5672
-    depends_on:
-      - mongo
-      - rabbitmq
+      auth-service:
+        condition: service_started
+      employee-service:
+        condition: service_started
+      time-tracking-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
   # ── Auth Service (NoSQL — MongoDB) ───────────────────────────────────────────
@@ -66,9 +54,14 @@ services:
       - JWT_SECRET=${JWT_SECRET:-nexus_jwt_secret_change_in_production}
       - PORT=3001
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - GATEWAY_HOST=api-gateway
+      - GATEWAY_PORT=8080
+      - SERVICE_URL=http://auth-service:3001
     depends_on:
-      - mongo
-      - rabbitmq
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
   # ── Employee Service (SQL — PostgreSQL) ──────────────────────────────────────
@@ -76,6 +69,7 @@ services:
     build: ./employee-service
     expose:
       - '3002'
+      - '50051'
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -83,12 +77,44 @@ services:
       - DB_USER=postgres
       - DB_PASS=${DB_PASS:-password}
       - PORT=3002
+      - GRPC_PORT=50051
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - GATEWAY_HOST=api-gateway
+      - GATEWAY_PORT=8080
+      - SERVICE_URL=http://employee-service:3002
     depends_on:
-      - postgres
-      - redis
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Time Tracking & Payroll Service ──────────────────────────────────────────
+  time-tracking-service:
+    build: ./time-tracking-service
+    container_name: time-tracking-service
+    expose:
+      - '3005'
+    ports:
+      - '3005:3005'
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/nexus_payroll
+      - PORT=3005
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - EMPLOYEE_GRPC_URL=employee-service:50051
+      - GATEWAY_HOST=api-gateway
+      - GATEWAY_PORT=8080
+      - SERVICE_URL=http://time-tracking-service:3005
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      employee-service:
+        condition: service_started
     restart: unless-stopped
 
   # ── Cache ─────────────────────────────────────────────────────────────────────
@@ -98,7 +124,7 @@ services:
       - '6379'
     restart: unless-stopped
 
-  # ── Message Broker (SHTESA E RE) ──────────────────────────────────────────────
+  # ── Message Broker ────────────────────────────────────────────────────────────
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: nexus-rabbitmq
@@ -107,6 +133,12 @@ services:
       - '15672'
     ports:
       - '15672:15672'
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
   # ── Databases ────────────────────────────────────────────────────────────────
@@ -116,6 +148,12 @@ services:
       - '27017:27017'
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
   postgres:
@@ -128,6 +166,12 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
 
 volumes:
