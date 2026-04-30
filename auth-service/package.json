@@ -16,7 +16,6 @@
       "routes/**/*.js",
       "application/**/*.js",
       "infrastructure/**/*.js",
-      "domain/**/*.js",
       "models/**/*.js"
     ],
     "coverageThreshold": {

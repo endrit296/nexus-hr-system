@@ -1,0 +1,11 @@
+{
+  "name": "nexus-hr-integration-tests",
+  "version": "1.0.0",
+  "description": "Newman integration test runner for Nexus HR",
+  "scripts": {
+    "test": "node integration/run-newman.js"
+  },
+  "devDependencies": {
+    "newman": "^6.1.3"
+  }
+}
