@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexus-hr-config
+  namespace: nexus-hr
+data:
+  NODE_ENV:              "production"
+  MONGO_URI_AUTH:        "mongodb://mongo:27017/nexus_auth"
+  MONGO_URI_PAYROLL:     "mongodb://mongo:27017/nexus_payroll"
+  DB_HOST:               "postgres"
+  DB_PORT:               "5432"
+  DB_NAME:               "nexus_hr"
+  DB_USER:               "postgres"
+  REDIS_URL:             "redis://redis:6379"
+  RABBITMQ_URL:          "amqp://rabbitmq:5672"
+  AUTH_SERVICE_URL:      "http://auth-service:3001"
+  EMPLOYEE_SERVICE_URL:  "http://employee-service:3002"
+  PAYROLL_SERVICE_URL:   "http://time-tracking-service:3005"
+  EMPLOYEE_GRPC_URL:     "employee-service:50051"
+  GATEWAY_HOST:          "api-gateway"
+  GATEWAY_PORT:          "8080"

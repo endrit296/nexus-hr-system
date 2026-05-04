@@ -2,7 +2,11 @@ const { getBreakerFor }         = require('./breaker');
 const { register: regService,
         heartbeat: hbService,
         getAll: getAllServices }   = require('./registry');
+const { register: metricsRegister,
+        requestMiddleware,
+        circuitBreakerState }     = require('./metrics');
 const express                     = require('express');
+const helmet                      = require('helmet');
 const cors                        = require('cors');
 const jwt                         = require('jsonwebtoken');
 const rateLimit                   = require('express-rate-limit');
@@ -21,11 +25,33 @@ const AUTH_SERVICE     = process.env.AUTH_SERVICE_URL     || 'http://localhost:3
 const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE_URL || 'http://localhost:3002';
 const PAYROLL_SERVICE  = process.env.PAYROLL_SERVICE_URL  || 'http://localhost:3005';
 
+// ── Security headers (Helmet) ─────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", 'data:'],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost'] }));
+app.use(cors({ origin: ['http://localhost:5173', 'http://localhost', 'https://localhost'] }));
 
 // ── API version header ────────────────────────────────────────────────────────
 app.use((_req, res, next) => { res.setHeader('X-API-Version', '1.0'); next(); });
+
+// ── Prometheus metrics (public — before rate limiter) ─────────────────────────
+app.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', metricsRegister.contentType);
+  res.end(await metricsRegister.metrics());
+});
+
+// ── Prometheus request instrumentation ───────────────────────────────────────
+app.use(requestMiddleware);
 
 // ── HTTP request logging ──────────────────────────────────────────────────────
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
@@ -73,6 +99,7 @@ const PUBLIC_PATHS = [
   { method: 'POST', path: '/api/registry/register'  },
   { method: 'POST', path: '/api/registry/heartbeat' },
   { method: 'GET',  path: '/health'                 },
+  { method: 'GET',  path: '/metrics'                },
 ];
 
 const isPublic = (req) => {

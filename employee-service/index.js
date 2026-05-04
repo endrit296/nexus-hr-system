@@ -1,4 +1,5 @@
 const express    = require('express');
+const helmet     = require('helmet');
 const morgan     = require('morgan');
 const { connectDB, sequelize } = require('./config/database');
 const Department = require('./models/Department');
@@ -13,6 +14,7 @@ const logger     = require('./logger');
 const app  = express();
 const PORT = process.env.PORT || 3002;
 
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 

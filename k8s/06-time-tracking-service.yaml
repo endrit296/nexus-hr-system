@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: time-tracking-service
+  namespace: nexus-hr
+  labels:
+    app: time-tracking-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: time-tracking-service
+  template:
+    metadata:
+      labels:
+        app: time-tracking-service
+    spec:
+      containers:
+        - name: time-tracking-service
+          image: ghcr.io/endrit296/nexus-hr-time-tracking-service:latest
+          ports:
+            - containerPort: 3005
+          envFrom:
+            - configMapRef:
+                name: nexus-hr-config
+          env:
+            - name: PORT
+              value: "3005"
+            - name: MONGO_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: nexus-hr-config
+                  key: MONGO_URI_PAYROLL
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: time-tracking-service
+  namespace: nexus-hr
+spec:
+  selector:
+    app: time-tracking-service
+  ports:
+    - port: 3005
+      targetPort: 3005

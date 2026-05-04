@@ -1,4 +1,5 @@
 const express    = require('express');
+const helmet     = require('helmet');
 const morgan     = require('morgan');
 const connectDB  = require('./db');
 const authRoutes = require('./routes/auth');
@@ -8,6 +9,7 @@ const { register, startHeartbeat } = require('./registerService');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
