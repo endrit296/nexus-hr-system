@@ -6,7 +6,7 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl",      "value": "http://localhost:8080" },
+    { "key": "baseUrl",      "value": "http://localhost" },
     { "key": "accessToken",  "value": "" },
     { "key": "refreshToken", "value": "" },
     { "key": "userId",       "value": "" },
@@ -66,16 +66,15 @@
       "item": [
         {
           "name": "Register new user",
-          "request": {
-            "method": "POST",
-            "url":    "{{baseUrl}}/api/auth/register",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"username\":\"newman_user\",\"email\":\"newman_{{$timestamp}}@nexus.test\",\"password\":\"Test1234!\"}"
-            }
-          },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('newmanTs', Date.now());"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -88,7 +87,16 @@
                 ]
               }
             }
-          ]
+          ],
+          "request": {
+            "method": "POST",
+            "url":    "{{baseUrl}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"newman_{{newmanTs}}\",\"email\":\"newman_{{newmanTs}}@nexustest.com\",\"password\":\"Test1234!\"}"
+            }
+          }
         },
         {
           "name": "Login as admin",
@@ -98,7 +106,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\"email\":\"admin@nexus.com\",\"password\":\"password123\"}"
+              "raw": "{\"email\":\"admin@nexushr.com\",\"password\":\"Admin1234!\"}"
             }
           },
           "event": [
@@ -202,7 +210,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\"email\":\"admin@nexus.com\"}"
+              "raw": "{\"email\":\"admin@nexushr.com\"}"
             }
           },
           "event": [
@@ -238,7 +246,7 @@
                   "pm.test('List departments returns array', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body).to.be.an('array');",
+                  "  pm.expect(body.departments).to.be.an('array');",
                   "});"
                 ]
               }
@@ -256,7 +264,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"name\":\"Newman Test Dept\"}"
+              "raw": "{\"name\":\"Newman Dept {{newmanTs}}\"}"
             }
           },
           "event": [
@@ -290,7 +298,8 @@
                   "pm.test('Get department returns name', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body.name).to.eql('Newman Test Dept');",
+                  "  pm.expect(body).to.have.property('name');",
+                  "  pm.expect(body.name).to.include('Newman Dept');",
                   "});"
                 ]
               }
@@ -318,8 +327,10 @@
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
                   "  pm.expect(body).to.have.property('employees');",
-                  "  pm.expect(body).to.have.property('total');",
-                  "  pm.expect(body).to.have.property('page');",
+                  "  pm.expect(body.employees).to.be.an('array');",
+                  "  pm.expect(body).to.have.property('pagination');",
+                  "  pm.expect(body.pagination).to.have.property('total');",
+                  "  pm.expect(body.pagination).to.have.property('page');",
                   "});"
                 ]
               }
@@ -337,7 +348,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"firstName\":\"Newman\",\"lastName\":\"Tester\",\"email\":\"newman.tester@nexus.test\",\"position\":\"QA Engineer\",\"hireDate\":\"2024-01-15\",\"salary\":60000,\"departmentId\":{{departmentId}}}"
+              "raw": "{\"firstName\":\"Newman\",\"lastName\":\"Tester\",\"email\":\"newman_{{newmanTs}}_emp@nexustest.com\",\"position\":\"QA Engineer\",\"hireDate\":\"2024-01-15\",\"salary\":60000,\"departmentId\":{{departmentId}}}"
             }
           },
           "event": [

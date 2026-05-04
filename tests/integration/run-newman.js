@@ -11,7 +11,7 @@ const newman = require('newman');
 const path   = require('path');
 
 const COLLECTION = path.join(__dirname, 'nexus-hr.postman_collection.json');
-const BASE_URL   = process.env.BASE_URL || 'http://localhost:8080';
+const BASE_URL   = process.env.BASE_URL || 'http://localhost';
 
 newman.run(
   {

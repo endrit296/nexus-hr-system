@@ -147,6 +147,15 @@ router.put('/change-password', verifyAuth, handle(async (req) => {
   });
 }));
 
+// ── GET /auth/me — current authenticated user ────────────────────────────────
+
+router.get('/me', verifyAuth, handle(async (req) => {
+  const User = require('../models/User');
+  const user = await User.findById(req.user.userId).select('-password -resetToken -resetTokenExpires').lean();
+  if (!user) return Object.assign({ message: 'User not found' }, { _status: 404 });
+  return { id: user._id, username: user.username, email: user.email, role: user.role };
+}));
+
 // ── GET /auth/users — list all users with pagination (admin only) ─────────────
 
 router.get('/users', verifyAdmin, handle(async (req) => {
