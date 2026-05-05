@@ -12,7 +12,7 @@ const employeeSchema = z.object({
   phone:        z.string().optional(),
   position:     z.string().min(1, 'Required'),
   status:       z.enum(['active', 'on_leave', 'inactive']),
-  departmentId: z.string().min(1, 'Select a department'),
+  departmentId: z.string().optional(),
   managerId:    z.string().optional(),
   hireDate:     z.string().optional(),
   salary:       z.string().optional(),
@@ -102,7 +102,7 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
           <option value="inactive">Inactive</option>
         </SelectField>
 
-        <SelectField label="Department *" error={errors.departmentId?.message} {...register('departmentId')}>
+        <SelectField label="Department" error={errors.departmentId?.message} {...register('departmentId')}>
           <option value="">— None —</option>
           {departments.map((d) => (
             <option key={d.id} value={String(d.id)}>{d.name}</option>

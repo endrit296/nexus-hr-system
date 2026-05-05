@@ -27,7 +27,7 @@ function Layout({ user, onLogout }) {
 
   const renderPage = () => {
     switch (activePage) {
-      case 'dashboard':   return <DashboardHome />;
+      case 'dashboard':   return <DashboardHome onNavigate={setActivePage} />;
       case 'employees':   return <EmployeesPage user={user} />;
       case 'departments': return <DepartmentsPage user={user} />;
       case 'orgchart':    return <OrgChartPage />;

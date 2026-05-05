@@ -104,7 +104,7 @@ function buildHireData(employees) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-function DashboardHome() {
+function DashboardHome({ onNavigate }) {
   const [employees, setEmployees]         = useState([]);
   const [departments, setDepartments]     = useState([]);
   const [totalEmployees, setTotalEmployees] = useState(0);
@@ -220,7 +220,10 @@ function DashboardHome() {
         />
 
         <div className="px-5 py-3 border-t border-slate-100">
-          <span className="text-sm text-brand-600 font-semibold hover:underline cursor-pointer">
+          <span
+            className="text-sm text-brand-600 font-semibold hover:underline cursor-pointer"
+            onClick={() => onNavigate?.('employees')}
+          >
             View all employees →
           </span>
         </div>

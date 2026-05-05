@@ -4,7 +4,7 @@ const logger     = require('../../logger');
 class EmailService {
   constructor() {
     this.fromEmail = process.env.FROM_EMAIL || 'noreply@nexus-hr.com';
-    this.appUrl    = process.env.APP_URL    || 'http://localhost:3000';
+    this.appUrl    = process.env.APP_URL    || 'http://localhost';
 
     if (process.env.SMTP_HOST) {
       this.transporter = nodemailer.createTransport({
