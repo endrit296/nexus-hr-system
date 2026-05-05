@@ -30,34 +30,26 @@ class AuthService {
       throw serviceError('Username or email already in use', 409);
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const emailEnabled   = !!process.env.SMTP_HOST;
-
-    const activationToken       = emailEnabled ? crypto.randomBytes(32).toString('hex') : undefined;
-    const activationTokenExpiry = emailEnabled ? new Date(Date.now() + 24 * 60 * 60 * 1000) : undefined;
+    const hashedPassword        = await bcrypt.hash(password, 10);
+    const activationToken       = crypto.randomBytes(32).toString('hex');
+    const activationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const user = await userRepository.create({
       username,
       email,
       password: hashedPassword,
-      isVerified: !emailEnabled,
+      isVerified: false,
       activationToken,
       activationTokenExpiry,
     });
 
-    if (emailEnabled) {
-      await emailService.sendActivationEmail(user, activationToken);
-    }
+    await emailService.sendActivationEmail(user, activationToken);
 
     await auditLogRepository.create({
       userId: user._id, username: user.username, action: 'REGISTER', details: { email }, ipAddress,
     });
 
-    return {
-      message: emailEnabled
-        ? 'Registration successful. Please check your email to activate your account.'
-        : 'Registration successful. You can now log in.',
-    };
+    return { message: 'Registration successful. Please check your email to activate your account.' };
   }
 
   async login({ email, password, ipAddress }) {

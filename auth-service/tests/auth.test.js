@@ -40,14 +40,14 @@ beforeEach(() => {
 describe('POST /auth/register', () => {
   const body = { username: 'testuser', email: 'test@nexus.com', password: 'secret123' };
 
-  it('returns 201 with a success message', async () => {
+  it('returns 201 and prompts for email verification', async () => {
     User.findOne.mockResolvedValue(null);
     User.create.mockResolvedValue({ _id: 'uid1', username: 'testuser', email: 'test@nexus.com', role: 'employee' });
 
     const res = await request(app).post('/auth/register').send(body);
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('message');
-    expect(typeof res.body.message).toBe('string');
+    expect(res.body.message).toMatch(/Registration successful/i);
   });
 
   it('returns 409 when email or username is already registered', async () => {
