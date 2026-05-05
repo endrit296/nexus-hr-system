@@ -44,7 +44,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  await Employee.destroy({ where: {} });
+  await Employee.destroy({ where: {}, force: true });
   await Department.destroy({ where: {} });
 });
 
@@ -313,6 +313,37 @@ describe('DELETE /employees/:id', () => {
     const emp = await Employee.create({ firstName: 'Jane', lastName: 'Doe', email: 'jane@test.com' });
     await request(app).delete(`/employees/${emp.id}`).set('x-user-role', 'admin');
     expect(sendToQueue).toHaveBeenCalledWith('employee_events', expect.objectContaining({ event: 'DELETED' }));
+  });
+});
+
+// ── DELETE /employees/:id (soft-delete) ───────────────────────────────────────
+
+describe('DELETE /employees/:id (soft-delete)', () => {
+  it('deleted employee does not appear in GET /employees list', async () => {
+    const emp = await Employee.create({ firstName: 'Jane', lastName: 'Doe', email: 'jane@soft.com' });
+    await request(app).delete(`/employees/${emp.id}`).set('x-user-role', 'admin');
+
+    const res = await request(app).get('/employees').set('x-user-role', 'admin');
+    expect(res.status).toBe(200);
+    const emails = res.body.employees.map((e) => e.email);
+    expect(emails).not.toContain('jane@soft.com');
+  });
+
+  it('deleted employee has deletedAt set in the database', async () => {
+    const emp = await Employee.create({ firstName: 'Jane', lastName: 'Doe', email: 'jane@soft.com' });
+    await request(app).delete(`/employees/${emp.id}`).set('x-user-role', 'admin');
+
+    const found = await Employee.findOne({ where: { id: emp.id }, paranoid: false });
+    expect(found).not.toBeNull();
+    expect(found.deletedAt).not.toBeNull();
+  });
+
+  it('deleted employee returns 404 on GET /employees/:id', async () => {
+    const emp = await Employee.create({ firstName: 'Jane', lastName: 'Doe', email: 'jane@soft.com' });
+    await request(app).delete(`/employees/${emp.id}`).set('x-user-role', 'admin');
+
+    const res = await request(app).get(`/employees/${emp.id}`).set('x-user-role', 'admin');
+    expect(res.status).toBe(404);
   });
 });
 

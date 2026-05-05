@@ -10,7 +10,9 @@ const Employee = sequelize.define('Employee', {
   status:     { type: DataTypes.ENUM('active', 'inactive', 'on_leave'), defaultValue: 'active' },
   hireDate:   { type: DataTypes.DATEONLY },
   salary:     { type: DataTypes.DECIMAL(10, 2) },
+  deletedAt:  { type: DataTypes.DATE, allowNull: true },
 }, {
+  paranoid: true,
   indexes: [
     { fields: ['departmentId'] },
     { fields: ['managerId'] },
