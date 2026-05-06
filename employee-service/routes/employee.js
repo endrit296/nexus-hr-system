@@ -8,6 +8,12 @@ const { sendToQueue } = require('../messenger'); // <--- SHTESA 1
 const router   = express.Router();
 const BASE     = process.env.GATEWAY_URL || 'http://localhost:8080';
 
+const EMPLOYEE_CACHE_KEYS = [
+  'employees:page:1:limit:20',
+  'employees:page:1:limit:500',
+];
+const clearEmployeeCache = () => cache.del(...EMPLOYEE_CACHE_KEYS);
+
 const employeeLinks = (e) => ({
   self:       { href: `${BASE}/api/v1/employees/${e.id}`, method: 'GET'    },
   update:     { href: `${BASE}/api/v1/employees/${e.id}`, method: 'PUT'    },
@@ -95,7 +101,7 @@ router.put('/me', handle(async (req) => {
 
   const employee = await employeeService.getEmployeeByEmail(userEmail);
   const updated  = await employeeService.updateEmployee(employee.id, { phone: req.body.phone ?? employee.phone });
-  await cache.del(`employees:page:1:limit:20`);
+  await clearEmployeeCache();
   return attachLinks(updated);
 }));
 
@@ -114,7 +120,7 @@ router.post('/', requireRole('admin'), handle(async (req, res) => {
 
   try {
     const employee = await employeeService.createEmployee(value);
-    await cache.del(`employees:page:1:limit:20`);
+    await clearEmployeeCache();
     
     // SHTESA 2: Njoftojmë RabbitMQ
     await sendToQueue('employee_events', { event: 'CREATED', data: employee });
@@ -156,7 +162,7 @@ router.put('/:id', requireRole('admin', 'manager'), handle(async (req, res) => {
 
   try {
     const updated = await employeeService.updateEmployee(req.params.id, value);
-    await cache.del(`employees:page:1:limit:20`);
+    await clearEmployeeCache();
     
     // SHTESA 3: Njoftojmë RabbitMQ
     await sendToQueue('employee_events', { event: 'UPDATED', data: updated });
@@ -174,7 +180,7 @@ router.put('/:id', requireRole('admin', 'manager'), handle(async (req, res) => {
 
 router.delete('/:id', requireRole('admin'), handle(async (req) => {
   const result = await employeeService.deleteEmployee(req.params.id);
-  await cache.del(`employees:page:1:limit:20`);
+  await clearEmployeeCache();
   
   // SHTESA 4: Njoftojmë RabbitMQ
   await sendToQueue('employee_events', { event: 'DELETED', data: { id: req.params.id } });

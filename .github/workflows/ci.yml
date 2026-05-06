@@ -82,7 +82,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build all service images
-        run: docker compose build --parallel
+        run: docker compose build
 
       - name: Export images for integration test job
         run: |
@@ -117,7 +117,7 @@ jobs:
           key: docker-images-${{ github.sha }}
 
       - name: Load Docker images
-        run: docker load -i /tmp/nexus-images.tar || docker compose build --parallel
+        run: docker load -i /tmp/nexus-images.tar || docker compose build
 
       - name: Start full stack
         run: docker compose up -d

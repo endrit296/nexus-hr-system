@@ -104,12 +104,16 @@ function OrgChartPage() {
       `translateX(calc(-50% + ${pan.current.x}px)) translateY(${pan.current.y}px) scale(${zoom.current})`;
   }, []);
 
-  useEffect(() => {
-    client.get('/api/employees')
+  const load = useCallback(() => {
+    setLoading(true);
+    setError('');
+    client.get('/api/employees?limit=500')
       .then(({ data }) => setEmployees(data.employees))
       .catch(() => setError('Failed to load employees'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => { applyTransform(); }, [employees, applyTransform]);
 
@@ -277,6 +281,13 @@ function OrgChartPage() {
             onClick={resetView}
           >
             Reset view
+          </button>
+
+          <button
+            className="text-xs font-medium text-slate-600 border border-slate-200 rounded-lg px-2.5 py-2 hover:bg-slate-50 hover:text-slate-900 transition-colors whitespace-nowrap"
+            onClick={load}
+          >
+            Refresh
           </button>
 
           <span className="text-xs text-slate-400 whitespace-nowrap hidden sm:inline">Drag to pan · Scroll to zoom</span>

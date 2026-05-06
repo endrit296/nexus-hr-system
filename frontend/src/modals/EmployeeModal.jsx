@@ -8,14 +8,13 @@ import Input from '../components/ui/Input';
 const employeeSchema = z.object({
   firstName:    z.string().min(1, 'Required'),
   lastName:     z.string().min(1, 'Required'),
-  email:        z.email({ error: 'Invalid email' }),
+  email:        z.string().email('Invalid email'),
   phone:        z.string().optional(),
-  position:     z.string().min(1, 'Required'),
+  position:     z.string().optional(),
   status:       z.enum(['active', 'on_leave', 'inactive']),
   departmentId: z.string().optional(),
   managerId:    z.string().optional(),
   hireDate:     z.string().optional(),
-  salary:       z.string().optional(),
   hourlyRate:   z.string().optional(),
 });
 
@@ -50,11 +49,10 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
       phone:        employee?.phone        || '',
       position:     employee?.position     || '',
       status:       employee?.status       || 'active',
-      departmentId: employee?.departmentId ? String(employee.departmentId) : '',
-      managerId:    employee?.managerId    ? String(employee.managerId)    : '',
+      departmentId: employee?.departmentId != null ? String(employee.departmentId) : '',
+      managerId:    employee?.managerId    != null ? String(employee.managerId)    : '',
       hireDate:     employee?.hireDate     || '',
-      salary:       employee?.salary       ? String(employee.salary)       : '',
-      hourlyRate:   employee?.hourlyRate   ? String(employee.hourlyRate)   : '',
+      hourlyRate:   employee?.hourlyRate   != null ? String(employee.hourlyRate)   : '',
     },
   });
 
@@ -63,20 +61,18 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
       firstName:    data.firstName.trim(),
       lastName:     data.lastName.trim(),
       email:        data.email.trim(),
-      phone:        data.phone        || null,
-      position:     data.position     || null,
+      phone:        data.phone     || null,
+      position:     data.position  || null,
       status:       data.status,
-      hireDate:     data.hireDate     || null,
-      salary:       data.salary       ? Number(data.salary)       : null,
-      hourlyRate:   data.hourlyRate   ? Number(data.hourlyRate)   : null,
+      hireDate:     data.hireDate  || null,
+      hourlyRate:   data.hourlyRate ? Number(data.hourlyRate) : null,
       departmentId: data.departmentId ? Number(data.departmentId) : null,
       managerId:    data.managerId    ? Number(data.managerId)    : null,
     });
   };
 
-  const canSeeSalary    = userRole === 'admin';
-  const canSetRate      = userRole === 'admin' || userRole === 'manager';
-  const managerOptions  = employees.filter((e) => !isEdit || e.id !== employee.id);
+  const canSetRate     = userRole === 'admin' || userRole === 'manager';
+  const managerOptions = employees.filter((e) => !isEdit || e.id !== employee.id);
 
   return (
     <Modal
@@ -97,8 +93,8 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
         <Input label="First Name *" placeholder="Jane" error={errors.firstName?.message} {...register('firstName')} />
         <Input label="Last Name *"  placeholder="Doe"  error={errors.lastName?.message}  {...register('lastName')} />
         <Input label="Email *" type="email" placeholder="jane@company.com" error={errors.email?.message} {...register('email')} />
-        <Input label="Phone" placeholder="+1 555 000 0000" error={errors.phone?.message} {...register('phone')} />
-        <Input label="Position *" placeholder="Software Engineer" error={errors.position?.message} {...register('position')} />
+        <Input label="Phone" placeholder="+1 555 000 0000" {...register('phone')} />
+        <Input label="Position" placeholder="Software Engineer" {...register('position')} />
 
         <SelectField label="Status" error={errors.status?.message} {...register('status')}>
           <option value="active">Active</option>
@@ -106,14 +102,14 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
           <option value="inactive">Inactive</option>
         </SelectField>
 
-        <SelectField label="Department" error={errors.departmentId?.message} {...register('departmentId')}>
+        <SelectField label="Department" {...register('departmentId')}>
           <option value="">— None —</option>
           {departments.map((d) => (
             <option key={d.id} value={String(d.id)}>{d.name}</option>
           ))}
         </SelectField>
 
-        <SelectField label="Manager" error={errors.managerId?.message} {...register('managerId')}>
+        <SelectField label="Manager" {...register('managerId')}>
           <option value="">— None —</option>
           {managerOptions.map((e) => (
             <option key={e.id} value={String(e.id)}>
@@ -122,14 +118,18 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
           ))}
         </SelectField>
 
-        <Input label="Hire Date" type="date" error={errors.hireDate?.message} {...register('hireDate')} />
-
-        {canSeeSalary && (
-          <Input label="Annual Salary (€)" type="number" min="0" step="0.01" placeholder="50000" error={errors.salary?.message} {...register('salary')} />
-        )}
+        <Input label="Hire Date" type="date" {...register('hireDate')} />
 
         {canSetRate && (
-          <Input label="Hourly Rate (€)" type="number" min="0" step="0.01" placeholder="25.00" error={errors.hourlyRate?.message} {...register('hourlyRate')} />
+          <Input
+            label="Hourly Rate (€)"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="25.00"
+            error={errors.hourlyRate?.message}
+            {...register('hourlyRate')}
+          />
         )}
 
         {serverError && (

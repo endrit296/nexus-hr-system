@@ -8,7 +8,7 @@
     "dev": "nodemon index.js",
     "test": "jest --testEnvironment node --forceExit",
     "test:coverage": "jest --testEnvironment node --forceExit --coverage",
-    "lint": "npx eslint@8 . --ext .js"
+    "lint": "npx --yes eslint@8 . --ext .js"
   },
   "jest": {
     "testMatch": [
