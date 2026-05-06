@@ -32,6 +32,14 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'employee-se
 
 const startServer = async () => {
   await connectDB();
+  // Sequelize alter:true cannot add values to an existing Postgres ENUM type.
+  // Run this idempotent statement so 'on_leave' is always present before sync.
+  try {
+    await sequelize.query(
+      `ALTER TYPE "enum_Employees_status" ADD VALUE IF NOT EXISTS 'on_leave'`,
+      { raw: true }
+    );
+  } catch (_) { /* type doesn't exist yet on first run — sync will create it with all values */ }
   await sequelize.sync({ alter: true });
   logger.info('Tables synced');
   app.listen(PORT, async () => {

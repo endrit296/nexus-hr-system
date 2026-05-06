@@ -1,0 +1,13 @@
+apiVersion: v2
+name: nexus-hr
+description: Nexus HR System — microservices HR platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - hr
+  - microservices
+  - nodejs
+home: https://github.com/endrit296/nexus-hr-system
+maintainers:
+  - name: endrit296

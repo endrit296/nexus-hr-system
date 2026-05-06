@@ -1,0 +1,99 @@
+{{- if .Values.autoscaling.enabled }}
+# ── API Gateway HPA ───────────────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nexus-hr.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: {{ .Values.autoscaling.apiGateway.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.apiGateway.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.apiGateway.cpuUtilization }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# ── Auth Service HPA ──────────────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth-service-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nexus-hr.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth-service
+  minReplicas: {{ .Values.autoscaling.authService.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.authService.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.authService.cpuUtilization }}
+---
+# ── Employee Service HPA ──────────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: employee-service-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nexus-hr.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: employee-service
+  minReplicas: {{ .Values.autoscaling.employeeService.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.employeeService.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.employeeService.cpuUtilization }}
+---
+# ── Time-Tracking HPA ─────────────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: time-tracking-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nexus-hr.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: time-tracking-service
+  minReplicas: {{ .Values.autoscaling.timeTracking.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.timeTracking.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.timeTracking.cpuUtilization }}
+{{- end }}

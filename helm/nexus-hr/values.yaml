@@ -1,0 +1,98 @@
+# ── Image configuration ───────────────────────────────────────────────────────
+image:
+  registry: ghcr.io/endrit296/nexus-hr
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# ── Replica counts ────────────────────────────────────────────────────────────
+replicaCount:
+  apiGateway:       2
+  authService:      2
+  employeeService:  2
+  timeTracking:     2
+  frontend:         2
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: nexus-hr.example.com
+  tlsSecret: nexus-hr-tls
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+# ── Resource limits (applied to all application pods) ────────────────────────
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+
+# ── Database / infra resource limits ─────────────────────────────────────────
+dbResources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# ── Persistence ───────────────────────────────────────────────────────────────
+persistence:
+  mongo:
+    size: 5Gi
+    storageClass: ""
+  postgres:
+    size: 5Gi
+    storageClass: ""
+
+# ── Application config (non-secret) ──────────────────────────────────────────
+config:
+  nodeEnv:           production
+  mongoUriAuth:      "mongodb://mongo:27017/nexus_auth"
+  mongoUriPayroll:   "mongodb://mongo:27017/nexus_payroll"
+  dbHost:            postgres
+  dbPort:            "5432"
+  dbName:            nexus_hr
+  dbUser:            postgres
+  redisUrl:          "redis://redis:6379"
+  rabbitmqUrl:       "amqp://rabbitmq:5672"
+  authServiceUrl:    "http://auth-service:3001"
+  employeeServiceUrl:"http://employee-service:3002"
+  payrollServiceUrl: "http://time-tracking-service:3005"
+  employeeGrpcUrl:   "employee-service:50051"
+  gatewayHost:       api-gateway
+  gatewayPort:       "8080"
+  smtpHost:          "smtp.gmail.com"
+  smtpPort:          "465"
+
+# ── Secrets (override via --set or sealed-secrets in prod) ───────────────────
+secrets:
+  jwtSecret:         "nexus_jwt_secret_change_in_production"
+  dbPass:            "postgres"
+  postgresPassword:  "postgres"
+  smtpUser:          ""
+  smtpPass:          ""
+
+# ── HPA ───────────────────────────────────────────────────────────────────────
+autoscaling:
+  enabled: true
+  apiGateway:
+    minReplicas: 2
+    maxReplicas: 10
+    cpuUtilization: 70
+  authService:
+    minReplicas: 2
+    maxReplicas: 6
+    cpuUtilization: 70
+  employeeService:
+    minReplicas: 2
+    maxReplicas: 6
+    cpuUtilization: 70
+  timeTracking:
+    minReplicas: 2
+    maxReplicas: 4
+    cpuUtilization: 70

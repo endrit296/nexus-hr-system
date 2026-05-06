@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexus-hr-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nexus-hr.labels" . | nindent 4 }}
+data:
+  NODE_ENV:              {{ .Values.config.nodeEnv | quote }}
+  MONGO_URI_AUTH:        {{ .Values.config.mongoUriAuth | quote }}
+  MONGO_URI_PAYROLL:     {{ .Values.config.mongoUriPayroll | quote }}
+  DB_HOST:               {{ .Values.config.dbHost | quote }}
+  DB_PORT:               {{ .Values.config.dbPort | quote }}
+  DB_NAME:               {{ .Values.config.dbName | quote }}
+  DB_USER:               {{ .Values.config.dbUser | quote }}
+  REDIS_URL:             {{ .Values.config.redisUrl | quote }}
+  RABBITMQ_URL:          {{ .Values.config.rabbitmqUrl | quote }}
+  AUTH_SERVICE_URL:      {{ .Values.config.authServiceUrl | quote }}
+  EMPLOYEE_SERVICE_URL:  {{ .Values.config.employeeServiceUrl | quote }}
+  PAYROLL_SERVICE_URL:   {{ .Values.config.payrollServiceUrl | quote }}
+  EMPLOYEE_GRPC_URL:     {{ .Values.config.employeeGrpcUrl | quote }}
+  GATEWAY_HOST:          {{ .Values.config.gatewayHost | quote }}
+  GATEWAY_PORT:          {{ .Values.config.gatewayPort | quote }}
+  SMTP_HOST:             {{ .Values.config.smtpHost | quote }}
+  SMTP_PORT:             {{ .Values.config.smtpPort | quote }}
