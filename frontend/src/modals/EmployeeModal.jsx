@@ -1,9 +1,11 @@
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+
+const STATUSES = ['active', 'on_leave', 'inactive'];
 
 const employeeSchema = z.object({
   firstName:    z.string().min(1, 'Required'),
@@ -11,9 +13,9 @@ const employeeSchema = z.object({
   email:        z.string().email('Invalid email'),
   phone:        z.string().optional(),
   position:     z.string().optional(),
-  status:       z.enum(['active', 'on_leave', 'inactive']),
-  departmentId: z.string().optional(),
-  managerId:    z.string().optional(),
+  status:       z.string().refine((v) => STATUSES.includes(v), 'Select a valid status'),
+  departmentId: z.string().min(1, 'Department required'),
+  managerId:    z.string().min(1, 'Manager required'),
   hireDate:     z.string().optional(),
   hourlyRate:   z.string().optional(),
 });
@@ -39,9 +41,9 @@ function SelectField({ label, error, children, ...props }) {
 function EmployeeModal({ employee, departments, employees, userRole, onClose, onSave, loading, serverError }) {
   const isEdit = !!employee;
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, control, formState: { errors } } = useForm({
     resolver: zodResolver(employeeSchema),
-    mode: 'onChange',
+    mode: 'onSubmit',
     defaultValues: {
       firstName:    employee?.firstName    || '',
       lastName:     employee?.lastName     || '',
@@ -96,27 +98,45 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
         <Input label="Phone" placeholder="+1 555 000 0000" {...register('phone')} />
         <Input label="Position" placeholder="Software Engineer" {...register('position')} />
 
-        <SelectField label="Status" error={errors.status?.message} {...register('status')}>
-          <option value="active">Active</option>
-          <option value="on_leave">On Leave</option>
-          <option value="inactive">Inactive</option>
-        </SelectField>
+        <Controller
+          control={control}
+          name="status"
+          render={({ field }) => (
+            <SelectField label="Status" error={errors.status?.message} {...field}>
+              <option value="active">Active</option>
+              <option value="on_leave">On Leave</option>
+              <option value="inactive">Inactive</option>
+            </SelectField>
+          )}
+        />
 
-        <SelectField label="Department" {...register('departmentId')}>
-          <option value="">— None —</option>
-          {departments.map((d) => (
-            <option key={d.id} value={String(d.id)}>{d.name}</option>
-          ))}
-        </SelectField>
+        <Controller
+          control={control}
+          name="departmentId"
+          render={({ field }) => (
+            <SelectField label="Department *" error={errors.departmentId?.message} {...field}>
+              <option value="" disabled>Select department…</option>
+              {departments.map((d) => (
+                <option key={d.id} value={String(d.id)}>{d.name}</option>
+              ))}
+            </SelectField>
+          )}
+        />
 
-        <SelectField label="Manager" {...register('managerId')}>
-          <option value="">— None —</option>
-          {managerOptions.map((e) => (
-            <option key={e.id} value={String(e.id)}>
-              {e.firstName} {e.lastName}{e.position ? ` — ${e.position}` : ''}
-            </option>
-          ))}
-        </SelectField>
+        <Controller
+          control={control}
+          name="managerId"
+          render={({ field }) => (
+            <SelectField label="Manager *" error={errors.managerId?.message} {...field}>
+              <option value="" disabled>Select manager…</option>
+              {managerOptions.map((e) => (
+                <option key={e.id} value={String(e.id)}>
+                  {e.firstName} {e.lastName}{e.position ? ` — ${e.position}` : ''}
+                </option>
+              ))}
+            </SelectField>
+          )}
+        />
 
         <Input label="Hire Date" type="date" {...register('hireDate')} />
 

@@ -45,7 +45,7 @@ function EmployeesPage({ user }) {
   const [newCredentials, setNewCredentials] = useState(null);
 
   const fetchAll = () =>
-    Promise.all([client.get('/api/employees'), client.get('/api/departments')])
+    Promise.all([client.get('/api/employees?limit=500'), client.get('/api/departments')])
       .then(([empRes, deptRes]) => {
         setEmployees(empRes.data.employees);
         setDepartments(deptRes.data.departments);
