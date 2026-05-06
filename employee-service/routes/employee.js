@@ -24,6 +24,7 @@ const employeeSchema = Joi.object({
   status:       Joi.string().valid('active', 'inactive', 'on_leave').default('active'),
   hireDate:     Joi.date().allow(null),
   salary:       Joi.number().positive().allow(null),
+  hourlyRate:   Joi.number().positive().allow(null),
   departmentId: Joi.number().integer().positive().allow(null),
   managerId:    Joi.number().integer().positive().allow(null),
 });

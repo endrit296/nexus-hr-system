@@ -16,6 +16,7 @@ const employeeSchema = z.object({
   managerId:    z.string().optional(),
   hireDate:     z.string().optional(),
   salary:       z.string().optional(),
+  hourlyRate:   z.string().optional(),
 });
 
 const labelCls  = 'block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5';
@@ -53,6 +54,7 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
       managerId:    employee?.managerId    ? String(employee.managerId)    : '',
       hireDate:     employee?.hireDate     || '',
       salary:       employee?.salary       ? String(employee.salary)       : '',
+      hourlyRate:   employee?.hourlyRate   ? String(employee.hourlyRate)   : '',
     },
   });
 
@@ -66,12 +68,14 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
       status:       data.status,
       hireDate:     data.hireDate     || null,
       salary:       data.salary       ? Number(data.salary)       : null,
+      hourlyRate:   data.hourlyRate   ? Number(data.hourlyRate)   : null,
       departmentId: data.departmentId ? Number(data.departmentId) : null,
       managerId:    data.managerId    ? Number(data.managerId)    : null,
     });
   };
 
   const canSeeSalary    = userRole === 'admin';
+  const canSetRate      = userRole === 'admin' || userRole === 'manager';
   const managerOptions  = employees.filter((e) => !isEdit || e.id !== employee.id);
 
   return (
@@ -121,7 +125,11 @@ function EmployeeModal({ employee, departments, employees, userRole, onClose, on
         <Input label="Hire Date" type="date" error={errors.hireDate?.message} {...register('hireDate')} />
 
         {canSeeSalary && (
-          <Input label="Salary" type="number" min="0" step="0.01" placeholder="50000" error={errors.salary?.message} {...register('salary')} />
+          <Input label="Annual Salary (€)" type="number" min="0" step="0.01" placeholder="50000" error={errors.salary?.message} {...register('salary')} />
+        )}
+
+        {canSetRate && (
+          <Input label="Hourly Rate (€)" type="number" min="0" step="0.01" placeholder="25.00" error={errors.hourlyRate?.message} {...register('hourlyRate')} />
         )}
 
         {serverError && (

@@ -12,19 +12,24 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleString();
 }
 
-function PayrollPage({ user }) {
-  const [employee,   setEmployee]   = useState(null);
-  const [activeLog,  setActiveLog]  = useState(null);
-  const [timelogs,   setTimelogs]   = useState([]);
-  const [totalHours, setTotalHours] = useState(0);
-  const [loading,    setLoading]    = useState(true);
-  const [clocking,   setClocking]   = useState(false);
-  const [noRecord,   setNoRecord]   = useState(false);
+function formatCurrency(val) {
+  const n = parseFloat(val);
+  return Number.isFinite(n) ? `€${n.toFixed(2)}` : '—';
+}
 
-  // Payroll report state
+function PayrollPage({ user }) {
+  const [employee,    setEmployee]    = useState(null);
+  const [activeLog,   setActiveLog]   = useState(null);
+  const [timelogs,    setTimelogs]    = useState([]);
+  const [totalHours,  setTotalHours]  = useState(0);
+  const [loading,     setLoading]     = useState(true);
+  const [clocking,    setClocking]    = useState(false);
+  const [noRecord,    setNoRecord]    = useState(false);
+
   const [report,      setReport]      = useState(null);
-  const [hourlyRate,  setHourlyRate]  = useState('');
   const [calculating, setCalculating] = useState(false);
+
+  const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
   const fetchTimeLogs = useCallback(async (emp) => {
     const { data } = await client.get(`/api/v1/payroll/time/my?employeeId=${emp.id}`);
@@ -75,19 +80,22 @@ function PayrollPage({ user }) {
     }
   };
 
-  const handleCalculate = async () => {
+  const handleGenerateReport = async () => {
     if (!employee) return;
-    const rate = parseFloat(hourlyRate);
-    if (!rate || rate <= 0) { showError('Enter a valid hourly rate.'); return; }
+    const rate = parseFloat(employee.hourlyRate);
+    if (!rate || rate <= 0) {
+      showError('No hourly rate on file. Ask a manager to set it.');
+      return;
+    }
     setCalculating(true);
     try {
       const { data } = await client.get(
         `/api/v1/payroll/employee/${employee.id}?hourlyRate=${rate}&hoursWorked=${totalHours}`
       );
       setReport(data);
-      showSuccess('Payroll report generated.');
+      showSuccess('Monthly payroll report generated.');
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to generate payroll report.');
+      showError(err.response?.data?.message || 'Failed to generate report.');
     } finally {
       setCalculating(false);
     }
@@ -108,7 +116,9 @@ function PayrollPage({ user }) {
     );
   }
 
-  const isClockedIn = activeLog !== null;
+  const isClockedIn  = activeLog !== null;
+  const hourlyRate   = parseFloat(employee?.hourlyRate);
+  const hasRate      = Number.isFinite(hourlyRate) && hourlyRate > 0;
 
   return (
     <div className="max-w-lg mx-auto">
@@ -163,31 +173,50 @@ function PayrollPage({ user }) {
         </div>
       </div>
 
-      {/* Payroll report generator */}
+      {/* Hourly rate card */}
       <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-5 mb-5">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Generate Report</p>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            className="flex-1 h-10 px-3 rounded-lg border-[1.5px] border-slate-200 text-sm focus:outline-none focus:border-brand-500 transition-all"
-            placeholder={employee?.salary ? `Salary on file: €${employee.salary}/yr` : 'Hourly rate (€)'}
-            value={hourlyRate}
-            onChange={(e) => setHourlyRate(e.target.value)}
-          />
-          <button
-            onClick={handleCalculate}
-            disabled={calculating || !hourlyRate}
-            className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {calculating ? 'Calculating…' : 'Generate'}
-          </button>
-        </div>
-        <p className="text-xs text-slate-400">
-          Based on {formatHours(totalHours)} hrs logged in the last 30 days.
-          {/* TODO: allow employee to input hourlyRate if salary is not on file */}
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Hourly Rate</p>
+        {hasRate ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(employee.hourlyRate)}</p>
+              <p className="text-xs text-slate-500 mt-0.5">per hour</p>
+            </div>
+            {!isAdminOrManager && (
+              <p className="text-xs text-slate-400 italic">Set by your manager</p>
+            )}
+            {isAdminOrManager && (
+              <p className="text-xs text-slate-400 italic">Edit via Employee record</p>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-slate-400">
+            {isAdminOrManager
+              ? 'No hourly rate set. Edit the employee record to add one.'
+              : 'No hourly rate on file. Contact your manager to set it.'}
+          </div>
+        )}
+      </div>
+
+      {/* Monthly report generator */}
+      <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-5 mb-5">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Monthly Payroll Report</p>
+        <p className="text-xs text-slate-400 mb-3">
+          Based on {formatHours(totalHours)} hrs logged in the last 30 days
+          {hasRate ? ` at ${formatCurrency(employee.hourlyRate)}/hr.` : '.'}
         </p>
+        <button
+          onClick={handleGenerateReport}
+          disabled={calculating || !hasRate}
+          className="w-full px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {calculating ? 'Generating…' : 'Generate Report'}
+        </button>
+        {!hasRate && (
+          <p className="text-xs text-red-500 mt-2">
+            A hourly rate must be set before a report can be generated.
+          </p>
+        )}
       </div>
 
       {/* Report card */}
@@ -229,7 +258,7 @@ function PayrollPage({ user }) {
 
       {/* Recent time log entries */}
       {timelogs.length > 0 && (
-        <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg overflow-hidden">
+        <div className="bg-white ring-1 ring-slate-200 shadow-sm overflow-hidden rounded-lg">
           <div className="px-5 py-4 border-b border-slate-100">
             <h3 className="text-sm font-semibold text-slate-900">Recent Entries</h3>
           </div>
