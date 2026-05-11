@@ -3,9 +3,10 @@ const { sequelize } = require('../config/database');
 
 const LeaveType = sequelize.define('LeaveType', {
   code: {
-    type: DataTypes.ENUM('annual', 'sick'),
+    type: DataTypes.STRING(32),
     allowNull: false,
     unique: true,
+    validate: { isIn: [['annual', 'sick']] },
   },
   name: {
     type: DataTypes.STRING,

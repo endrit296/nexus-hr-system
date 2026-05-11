@@ -207,4 +207,10 @@ describe('LeaveType seed data', () => {
     expect(sick.requiresProofAfterDays).toBe(3);
     expect(sick.maxRetroactiveDays).toBe(7);
   });
+
+  it('rejects a leave type with an unrecognised code value', async () => {
+    await expect(
+      LeaveType.create({ code: 'invalid', name: 'Bad Type', isPaid: true })
+    ).rejects.toThrow(/validation error/i);
+  });
 });
