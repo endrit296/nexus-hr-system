@@ -2,12 +2,13 @@ import Avatar from './ui/Avatar';
 import RoleBadge from './ui/RoleBadge';
 
 const NAV_ITEMS = [
-  { key: 'dashboard',   icon: '📊', label: 'Dashboard',       roles: ['employee', 'manager', 'admin'] },
-  { key: 'employees',   icon: '👥', label: 'Employees',        roles: ['employee', 'manager', 'admin'] },
-  { key: 'departments', icon: '🏢', label: 'Departments',      roles: ['employee', 'manager', 'admin'] },
-  { key: 'orgchart',    icon: '🌐', label: 'Org Chart',        roles: ['employee', 'manager', 'admin'] },
-  { key: 'payroll',     icon: '💰', label: 'Payroll',          roles: ['employee', 'manager', 'admin'] },
-  { key: 'users',       icon: '🔑', label: 'User Management',  roles: ['admin'] },
+  { key: 'dashboard',       icon: '📊', label: 'Dashboard',        roles: ['employee', 'manager', 'admin'] },
+  { key: 'employees',       icon: '👥', label: 'Employees',         roles: ['employee', 'manager', 'admin'] },
+  { key: 'departments',     icon: '🏢', label: 'Departments',       roles: ['employee', 'manager', 'admin'] },
+  { key: 'orgchart',        icon: '🌐', label: 'Org Chart',         roles: ['employee', 'manager', 'admin'] },
+  { key: 'payroll',         icon: '💰', label: 'Payroll',           roles: ['employee', 'manager', 'admin'] },
+  { key: 'leave-approvals', icon: '📋', label: 'Leave Approvals',   roles: ['manager', 'admin'] },
+  { key: 'users',           icon: '🔑', label: 'User Management',   roles: ['admin'] },
 ];
 
 function Sidebar({ activePage, onNavigate, userRole, user, isOpen, onClose, onLogout }) {

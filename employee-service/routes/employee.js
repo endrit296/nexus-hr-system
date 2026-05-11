@@ -3,7 +3,9 @@ const Joi             = require('joi');
 const cache           = require('../cache');
 const { requireRole } = require('../middleware/auth');
 const employeeService = require('../application/services/EmployeeService');
-const { sendToQueue } = require('../messenger'); // <--- SHTESA 1
+const leaveService    = require('../application/services/LeaveService');
+const { sendToQueue } = require('../messenger');
+const logger          = require('../logger');
 
 const router   = express.Router();
 const BASE     = process.env.GATEWAY_URL || 'http://localhost:8080';
@@ -112,6 +114,21 @@ router.get('/:id', handle(async (req) => {
   return attachLinks(employee);
 }));
 
+// ── GET /employees/:id/leave-balance ─────────────────────────────────────────
+
+router.get('/:id/leave-balance', handle(async (req) => {
+  const { resolveEmployee } = require('../middleware/resolveEmployee');
+  // Inline employee resolution (can't use middleware on a sub-path this way, so resolve inline)
+  const email = req.headers['x-user-email'];
+  const role  = req.headers['x-user-role'];
+  if (!email) throw Object.assign(new Error('Authentication required'), { status: 401 });
+
+  const employeeRepository = require('../infrastructure/repositories/EmployeeRepository');
+  const currentEmployee    = await employeeRepository.findByEmail(email).catch(() => null);
+
+  return leaveService.getLeaveBalance(req.params.id, currentEmployee, role);
+}));
+
 // ── POST /employees — admin only ─────────────────────────────────────────────
 
 router.post('/', requireRole('admin'), handle(async (req, res) => {
@@ -121,9 +138,15 @@ router.post('/', requireRole('admin'), handle(async (req, res) => {
   try {
     const employee = await employeeService.createEmployee(value);
     await clearEmployeeCache();
-    
-    // SHTESA 2: Njoftojmë RabbitMQ
     await sendToQueue('employee_events', { event: 'CREATED', data: employee });
+
+    // Grant pro-rated leave on hire — fire-and-forget, non-blocking
+    if (employee.hireDate) {
+      const actorUserId = req.headers['x-user-id'] || 'system';
+      leaveService.grantHireTimeAccrual(employee, actorUserId).catch((e) =>
+        logger.warn(`[Leave] Hire accrual failed for employee ${employee.id}: ${e.message}`)
+      );
+    }
 
     res.status(201).json(attachLinks(employee));
   } catch (err) {

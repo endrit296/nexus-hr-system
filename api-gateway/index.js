@@ -176,16 +176,18 @@ const makeProxy = (target, targetPrefix) => {
 };
 
 // ── v1 versioned proxy routes ─────────────────────────────────────────────────
-app.use('/api/v1/auth',        makeProxy(AUTH_SERVICE,     '/auth'));
-app.use('/api/v1/employees',   makeProxy(EMPLOYEE_SERVICE, '/employees'));
-app.use('/api/v1/departments', makeProxy(EMPLOYEE_SERVICE, '/departments'));
-app.use('/api/v1/payroll',     makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
+app.use('/api/v1/auth',           makeProxy(AUTH_SERVICE,     '/auth'));
+app.use('/api/v1/employees',      makeProxy(EMPLOYEE_SERVICE, '/employees'));
+app.use('/api/v1/departments',    makeProxy(EMPLOYEE_SERVICE, '/departments'));
+app.use('/api/v1/leave-requests', makeProxy(EMPLOYEE_SERVICE, '/leave-requests'));
+app.use('/api/v1/payroll',        makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
 
 // ── Legacy /api/* routes (aliases) ───────────────────────────────────────────
-app.use('/api/auth',        makeProxy(AUTH_SERVICE,     '/auth'));
-app.use('/api/employees',   makeProxy(EMPLOYEE_SERVICE, '/employees'));
-app.use('/api/departments', makeProxy(EMPLOYEE_SERVICE, '/departments'));
-app.use('/api/payroll',     makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
+app.use('/api/auth',           makeProxy(AUTH_SERVICE,     '/auth'));
+app.use('/api/employees',      makeProxy(EMPLOYEE_SERVICE, '/employees'));
+app.use('/api/departments',    makeProxy(EMPLOYEE_SERVICE, '/departments'));
+app.use('/api/leave-requests', makeProxy(EMPLOYEE_SERVICE, '/leave-requests'));
+app.use('/api/payroll',        makeProxy(PAYROLL_SERVICE,  '/api/payroll'));
 
 // ── Dynamic Service Registry ──────────────────────────────────────────────────
 app.use(express.json());

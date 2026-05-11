@@ -9,11 +9,33 @@ import StatusBadge from '../components/ui/StatusBadge';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
+import LeaveModal from '../modals/LeaveModal';
 import { showSuccess, showError } from '../utils/toast';
 
 function formatDateShort(dateStr) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const [y, m, d] = String(dateStr).slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatDateRange(start, end) {
+  const fmt = (s) => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
+  return start === end ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+}
+
+const LEAVE_STATUS_STYLE = {
+  pending:   'bg-amber-50  text-amber-700',
+  approved:  'bg-green-50  text-green-700',
+  rejected:  'bg-red-50    text-red-700',
+  withdrawn: 'bg-slate-100 text-slate-500',
+};
+
+function LeaveStatusBadge({ status }) {
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${LEAVE_STATUS_STYLE[status] || 'bg-slate-100 text-slate-500'}`}>
+      {status}
+    </span>
+  );
 }
 
 function formatSalary(num) {
@@ -148,14 +170,36 @@ function ChangePasswordForm() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 function ProfilePage({ user }) {
-  const [employee, setEmployee] = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [noRecord, setNoRecord] = useState(false);
+  const [employee,      setEmployee]      = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [noRecord,      setNoRecord]      = useState(false);
+  const [leaveBalance,  setLeaveBalance]  = useState([]);
+  const [myRequests,    setMyRequests]    = useState([]);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [withdrawingId,  setWithdrawingId]  = useState(null);
+
+  const loadEmployee = () =>
+    client.get('/api/employees/me')
+      .then(({ data }) => {
+        setEmployee(data);
+        return data;
+      })
+      .catch((err) => { if (err.response?.status === 404) setNoRecord(true); return null; });
+
+  const loadLeaveData = (emp) => {
+    if (!emp) return;
+    Promise.all([
+      client.get(`/api/v1/employees/${emp.id}/leave-balance`),
+      client.get('/api/v1/leave-requests'),
+    ]).then(([balRes, reqRes]) => {
+      setLeaveBalance(balRes.data || []);
+      setMyRequests(reqRes.data?.requests || []);
+    }).catch(() => {});
+  };
 
   useEffect(() => {
-    client.get('/api/employees/me')
-      .then(({ data }) => setEmployee(data))
-      .catch((err) => { if (err.response?.status === 404) setNoRecord(true); })
+    loadEmployee()
+      .then((emp) => loadLeaveData(emp))
       .finally(() => setLoading(false));
   }, []);
 
@@ -163,6 +207,25 @@ function ProfilePage({ user }) {
     const { data } = await client.put('/api/employees/me', { phone });
     setEmployee((prev) => ({ ...prev, phone: data.phone }));
   };
+
+  const handleLeaveSuccess = () => loadLeaveData(employee);
+
+  const handleWithdraw = async (id) => {
+    setWithdrawingId(id);
+    try {
+      await client.post(`/api/v1/leave-requests/${id}/withdraw`);
+      showSuccess('Leave request withdrawn.');
+      loadLeaveData(employee);
+    } catch (e) {
+      showError(e.response?.data?.message || 'Failed to withdraw request.');
+    } finally {
+      setWithdrawingId(null);
+    }
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const canWithdraw = (req) =>
+    ['pending', 'approved'].includes(req.status) && String(req.startDate).slice(0, 10) > today;
 
   if (loading) return <Spinner />;
 
@@ -262,6 +325,88 @@ function ProfilePage({ user }) {
           </div>
         </div>
       </div>
+
+      {/* ── Leave Balance ── */}
+      {employee && leaveBalance.length > 0 && (
+        <div className="mx-8 mt-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Leave Balance</p>
+            <Button variant="primary" size="sm" onClick={() => setLeaveModalOpen(true)}>
+              + Apply for Leave
+            </Button>
+          </div>
+          <div className={`grid gap-4 ${leaveBalance.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+            {leaveBalance.map((b) => (
+              <div key={b.leave_type.id} className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{b.leave_type.name}</p>
+                    <p className="text-3xl font-extrabold text-slate-900 mt-1">{b.available}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">days available</p>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${b.leave_type.is_paid ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {b.leave_type.is_paid ? 'Paid' : 'Unpaid'}
+                  </span>
+                </div>
+                <div className="mt-4 flex gap-4 text-xs text-slate-500 border-t border-slate-50 pt-3">
+                  <span><span className="font-semibold text-slate-700">{b.accrued}</span> accrued</span>
+                  <span><span className="font-semibold text-slate-700">{b.consumed}</span> consumed</span>
+                  {b.reserved > 0 && (
+                    <span><span className="font-semibold text-amber-600">{b.reserved}</span> reserved</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── My Leave Requests ── */}
+      {employee && myRequests.length > 0 && (
+        <div className="mx-8 mt-5 bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">My Leave Requests</p>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {myRequests.slice(0, 10).map((req) => (
+              <div key={req.id} className="flex items-center gap-4 px-5 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {req.leaveType?.name || 'Leave'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {formatDateRange(req.startDate, req.endDate)} · {req.workingDaysCount} day{req.workingDaysCount !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <LeaveStatusBadge status={req.status} />
+                {canWithdraw(req) && (
+                  <button
+                    className="text-xs text-red-500 hover:text-red-700 font-semibold disabled:opacity-50 flex-shrink-0"
+                    onClick={() => handleWithdraw(req.id)}
+                    disabled={withdrawingId === req.id}
+                  >
+                    {withdrawingId === req.id ? '…' : 'Withdraw'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Apply for leave CTA when no balance yet ── */}
+      {employee && leaveBalance.length === 0 && (
+        <div className="mx-8 mt-5 border-[1.5px] border-dashed border-slate-200 rounded-xl p-6 text-center">
+          <p className="text-sm text-slate-400">No leave balance accrued yet.</p>
+        </div>
+      )}
+
+      <LeaveModal
+        isOpen={leaveModalOpen}
+        onClose={() => setLeaveModalOpen(false)}
+        leaveBalance={leaveBalance}
+        onSuccess={handleLeaveSuccess}
+      />
 
       {/* ── Security (Change Password) ── */}
       <div className="mx-8 mt-5">

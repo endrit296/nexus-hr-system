@@ -4,21 +4,23 @@ import Spinner from './ui/Spinner';
 import Sidebar from './Sidebar';
 import PayrollPage from './PayrollPage';
 
-const DashboardHome      = lazy(() => import('../pages/DashboardHome'));
-const EmployeesPage      = lazy(() => import('../pages/EmployeesPage'));
-const DepartmentsPage    = lazy(() => import('../pages/DepartmentsPage'));
-const OrgChartPage       = lazy(() => import('../pages/OrgChartPage'));
-const UserManagementPage = lazy(() => import('../pages/UserManagementPage'));
-const ProfilePage        = lazy(() => import('../pages/ProfilePage'));
+const DashboardHome       = lazy(() => import('../pages/DashboardHome'));
+const EmployeesPage       = lazy(() => import('../pages/EmployeesPage'));
+const DepartmentsPage     = lazy(() => import('../pages/DepartmentsPage'));
+const OrgChartPage        = lazy(() => import('../pages/OrgChartPage'));
+const UserManagementPage  = lazy(() => import('../pages/UserManagementPage'));
+const ProfilePage         = lazy(() => import('../pages/ProfilePage'));
+const LeaveApprovalsPage  = lazy(() => import('../pages/LeaveApprovalsPage'));
 
 const pageTitles = {
-  dashboard:   'Dashboard',
-  employees:   'Employees',
-  departments: 'Departments',
-  orgchart:    'Organization Chart',
-  users:       'User Management',
-  profile:     'My Profile',
-  payroll:     'Payroll Module',
+  dashboard:       'Dashboard',
+  employees:       'Employees',
+  departments:     'Departments',
+  orgchart:        'Organization Chart',
+  users:           'User Management',
+  profile:         'My Profile',
+  payroll:         'Payroll Module',
+  'leave-approvals': 'Leave Approvals',
 };
 
 function Layout({ user, onLogout }) {
@@ -27,14 +29,15 @@ function Layout({ user, onLogout }) {
 
   const renderPage = () => {
     switch (activePage) {
-      case 'dashboard':   return <DashboardHome onNavigate={setActivePage} />;
-      case 'employees':   return <EmployeesPage user={user} />;
-      case 'departments': return <DepartmentsPage user={user} />;
-      case 'orgchart':    return <OrgChartPage />;
-      case 'users':       return user.role === 'admin' ? <UserManagementPage currentUserId={user.id} /> : <DashboardHome />;
-      case 'profile':     return <ProfilePage user={user} />;
-      case 'payroll':     return <PayrollPage />;
-      default:            return <DashboardHome />;
+      case 'dashboard':        return <DashboardHome onNavigate={setActivePage} user={user} />;
+      case 'employees':        return <EmployeesPage user={user} />;
+      case 'departments':      return <DepartmentsPage user={user} />;
+      case 'orgchart':         return <OrgChartPage />;
+      case 'users':            return user.role === 'admin' ? <UserManagementPage currentUserId={user.id} /> : <DashboardHome user={user} />;
+      case 'profile':          return <ProfilePage user={user} />;
+      case 'payroll':          return <PayrollPage />;
+      case 'leave-approvals':  return ['admin', 'manager'].includes(user.role) ? <LeaveApprovalsPage user={user} /> : <DashboardHome user={user} />;
+      default:                 return <DashboardHome user={user} />;
     }
   };
 

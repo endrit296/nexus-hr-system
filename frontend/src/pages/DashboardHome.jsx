@@ -104,24 +104,34 @@ function buildHireData(employees) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-function DashboardHome({ onNavigate }) {
-  const [employees, setEmployees]         = useState([]);
-  const [departments, setDepartments]     = useState([]);
-  const [totalEmployees, setTotalEmployees] = useState(0);
-  const [loading, setLoading]             = useState(true);
+function DashboardHome({ onNavigate, user }) {
+  const [employees, setEmployees]             = useState([]);
+  const [departments, setDepartments]         = useState([]);
+  const [totalEmployees, setTotalEmployees]   = useState(0);
+  const [pendingLeave, setPendingLeave]       = useState([]);
+  const [loading, setLoading]                 = useState(true);
+
+  const role = user?.role;
 
   useEffect(() => {
-    Promise.all([
+    const reqs = [
       client.get('/api/employees?limit=500'),
       client.get('/api/departments'),
-    ]).then(([empRes, deptRes]) => {
-      setEmployees(empRes.data.employees          || []);
+    ];
+    if (role === 'admin') {
+      reqs.push(client.get('/api/v1/leave-requests?all=true&status=pending&limit=5'));
+    } else if (role === 'manager') {
+      reqs.push(client.get('/api/v1/leave-requests?as=manager&status=pending&limit=5'));
+    }
+
+    Promise.all(reqs).then(([empRes, deptRes, leaveRes]) => {
+      setEmployees(empRes.data.employees     || []);
       setDepartments(deptRes.data.departments || []);
-      // Use server-reported total so the stat card is accurate even if limit caps results
       setTotalEmployees(empRes.data.pagination?.total ?? (empRes.data.employees?.length || 0));
+      if (leaveRes) setPendingLeave(leaveRes.data?.requests || []);
     }).catch(() => showError('Failed to load dashboard data'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [role]);
 
   if (loading) return <Spinner />;
 
@@ -206,6 +216,49 @@ function DashboardHome({ onNavigate }) {
         </ChartCard>
 
       </div>
+
+      {/* ── Pending Leave Approvals widget (manager/admin only) ── */}
+      {(role === 'admin' || role === 'manager') && (
+        <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden mb-8">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 className="text-md font-semibold text-slate-900">
+              Pending Leave Approvals
+              {pendingLeave.length > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                  {pendingLeave.length}
+                </span>
+              )}
+            </h2>
+            <span
+              className="text-sm text-brand-600 font-semibold hover:underline cursor-pointer"
+              onClick={() => onNavigate?.('leave-approvals')}
+            >
+              View all →
+            </span>
+          </div>
+          {pendingLeave.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-slate-400 text-center">No pending requests.</div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {pendingLeave.map((req) => (
+                <div key={req.id} className="flex items-center gap-4 px-5 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Unknown'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {req.leaveType?.name || 'Leave'} · {req.workingDaysCount} day{req.workingDaysCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <span className="text-xs bg-amber-50 text-amber-700 font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0">
+                    pending
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Recent hires table ── */}
       <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
