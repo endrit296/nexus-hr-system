@@ -37,10 +37,18 @@ class LeaveService {
     return workingDaysCount(startDate, endDate);
   }
 
+  // Annual allotment for an employee at Jan 1 of a given year (tenure-based)
+  computeYearlyAccrualAmount(employee, year) {
+    const jan1Ms       = new Date(`${year}-01-01`).getTime();
+    const hireMs       = new Date(String(employee.hireDate).slice(0, 10)).getTime();
+    const tenureAtJan1 = Math.floor((jan1Ms - hireMs) / (365 * 24 * 3600 * 1000));
+    return 20 + Math.floor(Math.max(0, tenureAtJan1) / 5);
+  }
+
   async getAvailableBalance(employeeId, leaveTypeId) {
     const breakdown = await leaveRepo.getLedgerBreakdown(employeeId, leaveTypeId);
     const reserved  = await leaveRepo.getReservedDays(employeeId, leaveTypeId);
-    const ledgerNet = breakdown.accrued - breakdown.consumed;
+    const ledgerNet = breakdown.accrued + (breakdown.adjusted || 0) - breakdown.consumed;
     return Math.round((ledgerNet - reserved) * 100) / 100;
   }
 
@@ -298,7 +306,7 @@ class LeaveService {
     for (const lt of leaveTypes) {
       const breakdown = await leaveRepo.getLedgerBreakdown(targetEmployeeId, lt.id);
       const reserved  = await leaveRepo.getReservedDays(targetEmployeeId, lt.id);
-      const available = Math.round((breakdown.accrued - breakdown.consumed - reserved) * 100) / 100;
+      const available = Math.round((breakdown.accrued + (breakdown.adjusted || 0) - breakdown.consumed - reserved) * 100) / 100;
       const upcoming  = await leaveRepo.getUpcomingApproved(targetEmployeeId, lt.id);
 
       result.push({
@@ -353,11 +361,44 @@ class LeaveService {
     return processed;
   }
 
+  // ── Private: grant yearly accrual for one employee for one specific year ─────
+  // Returns entries written (2) or 0 if an entry for that year already exists.
+  async _grantYearlyAccrualForEmployee(emp, year, annualType, sickType, actorUserId, transaction = null, reason = null) {
+    const jan1   = `${year}-01-01`;
+    const txOpts = transaction ? { transaction } : {};
+
+    const existing = await leaveRepo.findYearlyAccrualEntry(emp.id, annualType.id, year);
+    if (existing) return 0;
+
+    const annualDays = this.computeYearlyAccrualAmount(emp, year);
+
+    await leaveRepo.createLedgerEntry({
+      employeeId:      emp.id,
+      leaveTypeId:     annualType.id,
+      entryType:       'accrual',
+      days:            annualDays,
+      reason:          reason || `Annual accrual ${year}`,
+      effectiveDate:   jan1,
+      createdByUserId: String(actorUserId),
+    }, txOpts);
+
+    await leaveRepo.createLedgerEntry({
+      employeeId:      emp.id,
+      leaveTypeId:     sickType.id,
+      entryType:       'accrual',
+      days:            20,
+      reason:          reason || `Sick leave accrual ${year}`,
+      effectiveDate:   jan1,
+      createdByUserId: String(actorUserId),
+    }, txOpts);
+
+    return 2;
+  }
+
   // ── Yearly accrual job ────────────────────────────────────────────────────
 
   async processYearlyAccrual(asOf = new Date()) {
-    const year  = asOf.getFullYear();
-    const jan1  = `${year}-01-01`;
+    const year = asOf.getFullYear();
     const [annualType, sickType] = await Promise.all([
       leaveRepo.findLeaveTypeByCode('annual'),
       leaveRepo.findLeaveTypeByCode('sick'),
@@ -368,36 +409,117 @@ class LeaveService {
     let processed = 0;
 
     for (const emp of employees) {
-      // years_with_employer = floor((Jan 1 of this year − hire_date).days / 365)
-      const hireMs = new Date(emp.hireDate).getTime();
-      const jan1Ms = new Date(jan1).getTime();
-      const yearsWithEmployer = Math.floor((jan1Ms - hireMs) / (365 * 24 * 3600 * 1000));
-      const annualDays = 20 + Math.floor(Math.max(0, yearsWithEmployer) / 5);
-
-      await leaveRepo.createLedgerEntry({
-        employeeId:      emp.id,
-        leaveTypeId:     annualType.id,
-        entryType:       'accrual',
-        days:            annualDays,
-        reason:          `Annual accrual ${year}`,
-        effectiveDate:   jan1,
-        createdByUserId: 'system',
-      });
-
-      await leaveRepo.createLedgerEntry({
-        employeeId:      emp.id,
-        leaveTypeId:     sickType.id,
-        entryType:       'accrual',
-        days:            20,
-        reason:          `Sick leave accrual ${year}`,
-        effectiveDate:   jan1,
-        createdByUserId: 'system',
-      });
-
-      processed++;
+      const written = await this._grantYearlyAccrualForEmployee(emp, year, annualType, sickType, 'system');
+      if (written > 0) processed++;
     }
 
     return processed;
+  }
+
+  // ── Yearly forfeit job (Jul 1) ────────────────────────────────────────────
+  // For each active employee + leave type, compute how much balance exceeds the
+  // current-year allotment minus consumption already taken this year (the "target").
+  // If current balance > target, write a negative adjustment to forfeit the excess.
+  // Idempotent: skips if a 'Carryover forfeit%' adjustment already exists on Jul 1.
+  async processYearlyForfeit(asOf = new Date()) {
+    const currentYear = asOf.getFullYear();
+    const jul1        = `${currentYear}-07-01`;
+    const jan1        = `${currentYear}-01-01`;
+
+    const [annualType, sickType] = await Promise.all([
+      leaveRepo.findLeaveTypeByCode('annual'),
+      leaveRepo.findLeaveTypeByCode('sick'),
+    ]);
+    if (!annualType || !sickType) throw new Error('Leave types not seeded');
+
+    const employees = await leaveRepo.findActiveEmployeesWithHireDate();
+    let count = 0;
+
+    for (const emp of employees) {
+      for (const lt of [annualType, sickType]) {
+        const existing = await leaveRepo.findForfeitEntry(emp.id, lt.id, jul1);
+        if (existing) continue;
+
+        const allotment           = lt.code === 'annual' ? this.computeYearlyAccrualAmount(emp, currentYear) : 20;
+        const consumptionThisYear = await leaveRepo.getConsumptionSinceDate(emp.id, lt.id, jan1);
+        const targetBalance       = Math.max(0, allotment - consumptionThisYear);
+        const currentBalance      = await leaveRepo.getLedgerNetBalance(emp.id, lt.id);
+        const adjustment          = targetBalance - currentBalance;
+
+        if (adjustment < 0) {
+          await leaveRepo.createLedgerEntry({
+            employeeId:      emp.id,
+            leaveTypeId:     lt.id,
+            entryType:       'adjustment',
+            days:            adjustment,
+            reason:          'Carryover forfeit per Kosovo statute',
+            effectiveDate:   jul1,
+            createdByUserId: 'system',
+          });
+          count++;
+        }
+      }
+    }
+
+    return count;
+  }
+
+  // ── Backfill: write the Kosovo-statute carryover accruals for one employee ──
+  // Called from backfillLeaveAccrual.js inside an outer transaction (after DELETE ALL).
+  // Three cases based on hire_date vs. last year / current year:
+  //   A – hired before last year  → last-year allotment + current-year allotment (4 rows)
+  //   B – hired during last year  → pro-rated last year + full current year (4 rows)
+  //   C – hired during current year → pro-rated current year only (2 rows)
+  async replayLeaveAccrualForEmployee(employee, actorUserId = 'system', transaction = null) {
+    const hireDate    = String(employee.hireDate).slice(0, 10);
+    const currentYear = new Date().getFullYear();
+    const lastYear    = currentYear - 1;
+    const txOpts      = transaction ? { transaction } : {};
+
+    const [annualType, sickType] = await Promise.all([
+      leaveRepo.findLeaveTypeByCode('annual'),
+      leaveRepo.findLeaveTypeByCode('sick'),
+    ]);
+    if (!annualType || !sickType) throw new Error('Leave types not seeded');
+
+    let entriesWritten = 0;
+
+    if (hireDate < `${lastYear}-01-01`) {
+      // Case A: hired before last year — write both last-year and current-year allotments
+      const lastYearAnnual = this.computeYearlyAccrualAmount(employee, lastYear);
+      const currYearAnnual = this.computeYearlyAccrualAmount(employee, currentYear);
+
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: annualType.id, entryType: 'accrual', days: lastYearAnnual, reason: `Annual accrual ${lastYear}`,         effectiveDate: `${lastYear}-01-01`,    createdByUserId: String(actorUserId) }, txOpts);
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: sickType.id,   entryType: 'accrual', days: 20,             reason: `Sick leave accrual ${lastYear}`,   effectiveDate: `${lastYear}-01-01`,    createdByUserId: String(actorUserId) }, txOpts);
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: annualType.id, entryType: 'accrual', days: currYearAnnual, reason: `Annual accrual ${currentYear}`,     effectiveDate: `${currentYear}-01-01`, createdByUserId: String(actorUserId) }, txOpts);
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: sickType.id,   entryType: 'accrual', days: 20,             reason: `Sick leave accrual ${currentYear}`, effectiveDate: `${currentYear}-01-01`, createdByUserId: String(actorUserId) }, txOpts);
+      entriesWritten = 4;
+
+    } else if (hireDate <= `${lastYear}-12-31`) {
+      // Case B: hired during last year — pro-rated last year + full current year
+      const jan1  = `${lastYear}-01-01`;
+      const dec31 = `${lastYear}-12-31`;
+      const proratedAnnual = Math.floor(20 * workingDaysCount(hireDate, dec31) / workingDaysCount(jan1, dec31));
+      const currYearAnnual = this.computeYearlyAccrualAmount(employee, currentYear);
+
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: annualType.id, entryType: 'accrual', days: proratedAnnual, reason: 'Pro-rated annual leave on hire',     effectiveDate: hireDate,               createdByUserId: String(actorUserId) }, txOpts);
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: sickType.id,   entryType: 'accrual', days: 20,             reason: 'Sick leave grant on hire',            effectiveDate: hireDate,               createdByUserId: String(actorUserId) }, txOpts);
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: annualType.id, entryType: 'accrual', days: currYearAnnual, reason: `Annual accrual ${currentYear}`,     effectiveDate: `${currentYear}-01-01`, createdByUserId: String(actorUserId) }, txOpts);
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: sickType.id,   entryType: 'accrual', days: 20,             reason: `Sick leave accrual ${currentYear}`, effectiveDate: `${currentYear}-01-01`, createdByUserId: String(actorUserId) }, txOpts);
+      entriesWritten = 4;
+
+    } else {
+      // Case C: hired during current year — pro-rated current year only
+      const jan1  = `${currentYear}-01-01`;
+      const dec31 = `${currentYear}-12-31`;
+      const proratedAnnual = Math.floor(20 * workingDaysCount(hireDate, dec31) / workingDaysCount(jan1, dec31));
+
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: annualType.id, entryType: 'accrual', days: proratedAnnual, reason: 'Pro-rated annual leave on hire', effectiveDate: hireDate, createdByUserId: String(actorUserId) }, txOpts);
+      await leaveRepo.createLedgerEntry({ employeeId: employee.id, leaveTypeId: sickType.id,   entryType: 'accrual', days: 20,             reason: 'Sick leave grant on hire',       effectiveDate: hireDate, createdByUserId: String(actorUserId) }, txOpts);
+      entriesWritten = 2;
+    }
+
+    return entriesWritten;
   }
 
   // ── Hire-time accrual (called after employee creation) ────────────────────

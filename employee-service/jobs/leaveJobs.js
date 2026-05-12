@@ -26,7 +26,18 @@ function startLeaveJobs() {
     }
   });
 
-  logger.info('[LeaveJobs] Scheduled: daily consumption @ 00:05, yearly accrual @ Jan 1 00:01');
+  // Job C — yearly on Jul 1 at 01:00: forfeit previous-year carryover per Kosovo statute
+  schedule.scheduleJob('0 1 1 7 *', async () => {
+    logger.info('[LeaveJobs] Running yearly forfeit job');
+    try {
+      const count = await leaveService.processYearlyForfeit();
+      logger.info(`[LeaveJobs] Yearly forfeit complete — ${count} adjustments written`);
+    } catch (e) {
+      logger.error(`[LeaveJobs] Yearly forfeit error: ${e.message}`);
+    }
+  });
+
+  logger.info('[LeaveJobs] Scheduled: daily consumption @ 00:05, yearly accrual @ Jan 1 00:01, yearly forfeit @ Jul 1 01:00');
 }
 
 module.exports = { startLeaveJobs };

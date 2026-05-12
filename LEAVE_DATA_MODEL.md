@@ -35,6 +35,10 @@ available_balance =
   − reserved_by_open_requests
 ```
 
+`ledger.days` is signed: accrual rows are positive, consumption rows are negative,
+and adjustment rows may be positive or negative. All three entry types are summed
+together with no special handling — the sign already encodes the direction of change.
+
 Where:
 
 ```
@@ -167,6 +171,63 @@ actor_user_id   VARCHAR(255) NOT NULL  -- soft ref to auth-service User._id
 payload_json    JSONB    NULL  -- snapshot of relevant state at event time
 created_at      TIMESTAMPTZ NOT NULL
 ```
+
+---
+
+## Carryover and Forfeit (Kosovo Statute)
+
+Kosovo labour law requires employees to use their annual leave by **June 30 of the
+following year**. The same rule is applied to sick leave by product requirement.
+
+### Accrual timeline
+
+| When | What is written |
+|---|---|
+| Hire date | Pro-rated annual allotment + full sick allotment for the hire year |
+| Jan 1 each year | Full annual allotment (tenure-based) + 20 sick days |
+| Jul 1 each year | Forfeit adjustment (if carryover exists — see below) |
+
+### Forfeit rule
+
+On July 1 the `processYearlyForfeit` job runs for every active employee and each
+leave type:
+
+```
+allotment        = computeYearlyAccrualAmount(employee, current_year)  // annual
+                   20                                                   // sick
+consumption_ytd  = SUM(abs(days)) WHERE entry_type='consumption'
+                   AND effective_date >= Jan 1 of current_year
+target_balance   = MAX(0, allotment − consumption_ytd)
+current_balance  = SUM(days)  // all entry types, signed
+adjustment       = target_balance − current_balance
+
+IF adjustment < 0:
+    INSERT { entry_type='adjustment', days=adjustment,
+             reason='Carryover forfeit per Kosovo statute',
+             effective_date=Jul 1 }
+```
+
+Net effect: after July 1 the balance is capped at
+`(current_year_allotment − consumption_ytd)`. Any days inherited from before
+January 1 are forfeited.
+
+### Idempotency
+
+The forfeit job checks for an existing `adjustment` row with
+`reason LIKE 'Carryover forfeit%'` and `effective_date = Jul 1` before writing.
+Running it multiple times on the same date produces at most one row per
+employee+leave_type.
+
+### Backfill
+
+The `backfill:leave-accrual` script (`npm run backfill:leave-accrual`) implements
+the same two-year window:
+- Hired **before last year** → last-year allotment + current-year allotment (4 rows).
+- Hired **during last year** → pro-rated last-year + full current-year (4 rows).
+- Hired **during current year** → pro-rated current-year only (2 rows).
+
+The script **refuses to run** if any `consumption` rows exist, because wiping the
+ledger would destroy records of leave already taken. Run manual review first.
 
 ---
 
