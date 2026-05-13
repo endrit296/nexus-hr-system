@@ -702,3 +702,54 @@ describe('grantHireTimeAccrual', () => {
   });
 
 });
+
+// ── expiring_balance ──────────────────────────────────────────────────────────
+
+describe('expiring_balance in getLeaveBalance', () => {
+  const currentYear = new Date().getFullYear();
+
+  async function ledgerEntry(emp, lt, entryType, days, effectiveDate) {
+    return LeaveBalanceLedger.create({
+      employeeId: emp.id, leaveTypeId: lt.id,
+      entryType, days, reason: 'test', effectiveDate, createdByUserId: 'test',
+    });
+  }
+
+  it('returns 0 when net balance does not exceed the yearly target', async () => {
+    const sick = await LeaveType.create({ code: 'sick', name: 'Sick Leave', isPaid: true });
+    const emp  = await Employee.create({ firstName: 'A', lastName: 'B', email: 'expiring1@test.com' });
+    // allotment=20, consumed this year=5 → target=15; net=20-5=15 → expiring=0
+    await ledgerEntry(emp, sick, 'accrual',      20, `${currentYear}-01-01`);
+    await ledgerEntry(emp, sick, 'consumption',  -5, `${currentYear}-02-01`);
+
+    const bal     = await leaveService.getLeaveBalance(emp.id, null, 'admin');
+    const sickRow = bal.find((b) => b.leave_type.code === 'sick');
+    expect(sickRow.expiring_balance).toBe(0);
+  });
+
+  it('returns the correct expiring days when carryover exceeds the retention target', async () => {
+    const sick = await LeaveType.create({ code: 'sick', name: 'Sick Leave', isPaid: true });
+    const emp  = await Employee.create({ firstName: 'C', lastName: 'D', email: 'expiring2@test.com' });
+    // 15 last year + 20 this year - 5 consumed this year
+    // net=30, target=max(0,20-5)=15 → expiring=15
+    await ledgerEntry(emp, sick, 'accrual',      15, `${currentYear - 1}-01-01`);
+    await ledgerEntry(emp, sick, 'accrual',      20, `${currentYear}-01-01`);
+    await ledgerEntry(emp, sick, 'consumption',  -5, `${currentYear}-02-01`);
+
+    const bal     = await leaveService.getLeaveBalance(emp.id, null, 'admin');
+    const sickRow = bal.find((b) => b.leave_type.code === 'sick');
+    expect(sickRow.expiring_balance).toBe(15);
+  });
+
+  it('clamps to 0 — negative adjustment cannot produce a negative expiring_balance', async () => {
+    const sick = await LeaveType.create({ code: 'sick', name: 'Sick Leave', isPaid: true });
+    const emp  = await Employee.create({ firstName: 'E', lastName: 'F', email: 'expiring3@test.com' });
+    // 20 accrued, -8 adjustment → net=12, target=20 → expiring=max(0,12-20)=0
+    await ledgerEntry(emp, sick, 'accrual',     20, `${currentYear}-01-01`);
+    await ledgerEntry(emp, sick, 'adjustment',  -8, `${currentYear}-03-01`);
+
+    const bal     = await leaveService.getLeaveBalance(emp.id, null, 'admin');
+    const sickRow = bal.find((b) => b.leave_type.code === 'sick');
+    expect(sickRow.expiring_balance).toBe(0);
+  });
+});

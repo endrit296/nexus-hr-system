@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
 import ConfirmModal from '../modals/ConfirmModal';
 import { showSuccess, showError } from '../utils/toast';
+import { formatDateShort } from '../utils/formatDate';
 
 const ROLES = ['employee', 'manager', 'admin'];
 
@@ -121,7 +122,7 @@ function UserManagementPage({ currentUserId }) {
     {
       key: 'createdAt',
       label: 'Registered',
-      render: (u) => <span className="text-sm text-slate-500">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</span>,
+      render: (u) => <span className="text-sm text-slate-500">{formatDateShort(u.createdAt)}</span>,
     },
     {
       key: 'action',

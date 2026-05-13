@@ -1,21 +1,46 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import client from '../api/client';
 import Spinner from './ui/Spinner';
 import { showSuccess, showError } from '../utils/toast';
+import { formatDateTime, formatDateShort, formatRelative } from '../utils/formatDate';
 
-function formatHours(h) {
-  return Number.isFinite(h) ? h.toFixed(2) : '0.00';
+// ── Local helpers ──────────────────────────────────────────────────────────────
+
+function fmtElapsed(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return [
+    Math.floor(s / 3600),
+    Math.floor((s % 3600) / 60),
+    s % 60,
+  ].map((n) => String(n).padStart(2, '0')).join(':');
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleString();
+function fmtTime(isoStr) {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function formatCurrency(val) {
-  const n = parseFloat(val);
-  return Number.isFinite(n) ? `€${n.toFixed(2)}` : '—';
+function getLocalDateKey(date) {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({ label, hours }) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-5">
+      <p className="text-xs uppercase tracking-wide font-semibold text-slate-400">{label}</p>
+      <div className="flex items-baseline gap-1.5 mt-2">
+        <span className="text-3xl font-bold text-slate-900 tabular-nums">{hours.toFixed(2)}</span>
+        <span className="text-base text-slate-400">hrs</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 function PayrollPage({ user }) {
   const [employee,    setEmployee]    = useState(null);
@@ -25,11 +50,23 @@ function PayrollPage({ user }) {
   const [loading,     setLoading]     = useState(true);
   const [clocking,    setClocking]    = useState(false);
   const [noRecord,    setNoRecord]    = useState(false);
-
   const [report,      setReport]      = useState(null);
   const [calculating, setCalculating] = useState(false);
+  const [elapsed,     setElapsed]     = useState(0);
 
   const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+
+  // ── Live timer ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!activeLog) { setElapsed(0); return; }
+    const initial = Math.max(0, Math.floor((Date.now() - new Date(activeLog.checkIn).getTime()) / 1000));
+    setElapsed(initial);
+    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [activeLog]);
+
+  // ── Data fetching ────────────────────────────────────────────────────────────
 
   const fetchTimeLogs = useCallback(async (emp) => {
     const { data } = await client.get(`/api/v1/payroll/time/my?employeeId=${emp.id}`);
@@ -52,12 +89,14 @@ function PayrollPage({ user }) {
       .finally(() => setLoading(false));
   }, [fetchTimeLogs]);
 
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
   const handleClockIn = async () => {
     if (!employee) return;
     setClocking(true);
     try {
       await client.post('/api/v1/payroll/time/clock-in', { employeeId: employee.id });
-      showSuccess('Clocked in. Good work!');
+      showSuccess('Clocked in. Good luck!');
       await fetchTimeLogs(employee);
     } catch (err) {
       showError(err.response?.data?.message || 'Clock-in failed.');
@@ -80,17 +119,76 @@ function PayrollPage({ user }) {
     }
   };
 
+  // ── Computed values ──────────────────────────────────────────────────────────
+
+  const todayKey     = getLocalDateKey(new Date());
+  const yesterdayKey = getLocalDateKey(new Date(Date.now() - 86400000));
+
+  const todayHours = useMemo(() => {
+    const tk = getLocalDateKey(new Date());
+    const completed = timelogs
+      .filter((l) => l.status !== 'Active' && getLocalDateKey(l.checkIn) === tk)
+      .reduce((s, l) => s + (l.hoursWorked || 0), 0);
+    return completed + (activeLog ? elapsed / 3600 : 0);
+  }, [timelogs, activeLog, elapsed]);
+
+  const weekHours = useMemo(() => {
+    const now = new Date();
+    const dow = now.getDay();
+    const daysFromMon = dow === 0 ? 6 : dow - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - daysFromMon);
+    monday.setHours(0, 0, 0, 0);
+    const completed = timelogs
+      .filter((l) => l.status !== 'Active' && new Date(l.checkIn) >= monday)
+      .reduce((s, l) => s + (l.hoursWorked || 0), 0);
+    const activeInWeek = activeLog && new Date(activeLog.checkIn) >= monday ? elapsed / 3600 : 0;
+    return completed + activeInWeek;
+  }, [timelogs, activeLog, elapsed]);
+
+  // totalHours from the API sums completed-session hoursWorked; active session has hoursWorked=0
+  const monthHours = totalHours + (activeLog ? elapsed / 3600 : 0);
+
+  const lastCheckOut = useMemo(() =>
+    timelogs
+      .filter((l) => l.status === 'Completed' && l.checkOut)
+      .map((l) => l.checkOut)
+      .sort((a, b) => new Date(b) - new Date(a))[0] || null
+  , [timelogs]);
+
+  const groupedEntries = useMemo(() => {
+    const cutoff = new Date(Date.now() - 14 * 24 * 3600 * 1000);
+    const recent = timelogs.filter((l) => new Date(l.checkIn) >= cutoff);
+    const map = {};
+    recent.forEach((log) => {
+      const key = getLocalDateKey(log.checkIn);
+      if (!map[key]) map[key] = [];
+      map[key].push(log);
+    });
+    return Object.keys(map)
+      .sort((a, b) => b.localeCompare(a))
+      .map((key) => ({ key, logs: map[key] }));
+  }, [timelogs]);
+
+  const dayLabel = (key) => {
+    if (key === todayKey)     return 'Today';
+    if (key === yesterdayKey) return 'Yesterday';
+    return formatDateShort(key + 'T12:00:00');
+  };
+
+  const hourlyRate = parseFloat(employee?.hourlyRate);
+  const hasRate    = Number.isFinite(hourlyRate) && hourlyRate > 0;
+
   const handleGenerateReport = async () => {
     if (!employee) return;
-    const rate = parseFloat(employee.hourlyRate);
-    if (!rate || rate <= 0) {
+    if (!hasRate) {
       showError('No hourly rate on file. Ask a manager to set it.');
       return;
     }
     setCalculating(true);
     try {
       const { data } = await client.get(
-        `/api/v1/payroll/employee/${employee.id}?hourlyRate=${rate}&hoursWorked=${totalHours}`
+        `/api/v1/payroll/employee/${employee.id}?hourlyRate=${hourlyRate}&hoursWorked=${monthHours}`
       );
       setReport(data);
       showSuccess('Monthly payroll report generated.');
@@ -101,12 +199,13 @@ function PayrollPage({ user }) {
     }
   };
 
+  // ── Guard states ─────────────────────────────────────────────────────────────
+
   if (loading) return <Spinner />;
 
   if (noRecord) {
     return (
-      <div className="max-w-lg mx-auto">
-        <h1 className="text-2xl font-extrabold text-slate-900 mb-6">Payroll</h1>
+      <div className="max-w-5xl mx-auto">
         <div className="border-[1.5px] border-dashed border-slate-300 rounded-xl p-10 text-center text-slate-400">
           <div className="text-3xl mb-2">🔗</div>
           <div className="font-semibold text-slate-500 mb-1">No employee record linked</div>
@@ -116,112 +215,128 @@ function PayrollPage({ user }) {
     );
   }
 
-  const isClockedIn  = activeLog !== null;
-  const hourlyRate   = parseFloat(employee?.hourlyRate);
-  const hasRate      = Number.isFinite(hourlyRate) && hourlyRate > 0;
+  const elapsedOvertime = elapsed > 12 * 3600;
 
   return (
-    <div className="max-w-lg mx-auto">
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold text-slate-900">Payroll</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Time tracking and payroll for {employee?.firstName} {employee?.lastName}.
-        </p>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-6">
 
-      {/* Clock toggle */}
-      <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-6 mb-5 text-center">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Time Tracking</p>
-        {isClockedIn ? (
-          <button
-            onClick={handleClockOut}
-            disabled={clocking}
-            className="px-6 py-2.5 rounded-full font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50"
-          >
-            {clocking ? '…' : '🛑 Clock Out'}
-          </button>
+      {/* ── 1. Hero Card ── */}
+      <div className="bg-white rounded-2xl shadow-md p-8 relative">
+
+        {/* Status indicator — top right */}
+        <div className="absolute top-6 right-8 flex items-center gap-1.5">
+          {activeLog ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <span className="text-xs font-medium text-emerald-600">Active</span>
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-slate-300 inline-block" />
+              <span className="text-xs text-slate-400">Inactive</span>
+            </>
+          )}
+        </div>
+
+        {activeLog ? (
+          <>
+            <p className="font-mono tabular-nums text-6xl font-bold text-slate-900 leading-none">
+              {fmtElapsed(elapsed)}
+            </p>
+            <p className="text-slate-500 text-sm mt-2">
+              Clocked in at {formatDateTime(activeLog.checkIn)}
+            </p>
+
+            {elapsedOvertime && (
+              <div className="bg-amber-50 border-l-4 border-amber-400 px-4 py-2 rounded text-sm text-amber-800 mt-4">
+                Session running for {Math.floor(elapsed / 3600)} hours — did you forget to clock out?
+              </div>
+            )}
+
+            <button
+              onClick={handleClockOut}
+              disabled={clocking}
+              className="mt-6 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <span className="mr-1.5 text-xs">■</span>
+              {clocking ? 'Clocking out…' : 'Clock Out'}
+            </button>
+          </>
         ) : (
-          <button
-            onClick={handleClockIn}
-            disabled={clocking}
-            className="px-6 py-2.5 rounded-full font-bold text-white bg-green-500 hover:bg-green-600 transition-all shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50"
-          >
-            {clocking ? '…' : '🕒 Clock In'}
-          </button>
-        )}
-        {isClockedIn && (
-          <p className="text-xs text-slate-400 mt-3">
-            Clocked in at {formatDate(activeLog.checkIn)}
-          </p>
+          <>
+            <h2 className="text-2xl font-semibold text-slate-900">
+              You&apos;re not currently clocked in
+            </h2>
+            {lastCheckOut && (
+              <p className="text-slate-500 text-sm mt-1">
+                Last session ended {formatRelative(lastCheckOut)}
+              </p>
+            )}
+            <button
+              onClick={handleClockIn}
+              disabled={clocking}
+              className="mt-6 bg-brand-600 hover:bg-brand-700 text-white px-8 py-3 rounded-lg shadow-brand text-base font-semibold transition-colors disabled:opacity-50"
+            >
+              {clocking ? 'Clocking in…' : 'Clock In'}
+            </button>
+          </>
         )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
-        <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-5 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Hours This Month</p>
-          <p className="text-2xl font-extrabold text-slate-900">{formatHours(totalHours)}</p>
-          <p className="text-xs text-slate-500">hrs (last 30 days)</p>
-        </div>
-        <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-5 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Status</p>
-          <p className={`text-2xl font-extrabold ${isClockedIn ? 'text-green-600' : 'text-slate-400'}`}>
-            {isClockedIn ? '●' : '○'}
-          </p>
-          <p className="text-xs text-slate-500">{isClockedIn ? 'Active Now' : 'Offline'}</p>
-        </div>
+      {/* ── 2. Stat Cards ── */}
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label="Today"       hours={todayHours} />
+        <StatCard label="This Week"   hours={weekHours}  />
+        <StatCard label="Last 30 Days" hours={monthHours} />
       </div>
 
-      {/* Hourly rate card */}
-      <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-5 mb-5">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Hourly Rate</p>
-        {hasRate ? (
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(employee.hourlyRate)}</p>
-              <p className="text-xs text-slate-500 mt-0.5">per hour</p>
+      {/* ── 3. Hourly Rate ── */}
+      {hasRate && (
+        <div className="bg-slate-50 rounded-xl p-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide font-semibold text-slate-400">Hourly Rate</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-2xl font-semibold text-slate-900">€{hourlyRate.toFixed(2)}</span>
+              <span className="text-sm text-slate-500">/ hour</span>
             </div>
-            {!isAdminOrManager && (
-              <p className="text-xs text-slate-400 italic">Set by your manager</p>
-            )}
-            {isAdminOrManager && (
-              <p className="text-xs text-slate-400 italic">Edit via Employee record</p>
-            )}
           </div>
-        ) : (
-          <div className="text-sm text-slate-400">
-            {isAdminOrManager
-              ? 'No hourly rate set. Edit the employee record to add one.'
-              : 'No hourly rate on file. Contact your manager to set it.'}
-          </div>
-        )}
-      </div>
+          <span className="text-xs italic text-slate-400">
+            {isAdminOrManager ? 'Edit via Employee record' : 'Set by your manager'}
+          </span>
+        </div>
+      )}
 
-      {/* Monthly report generator */}
-      <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-5 mb-5">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Monthly Payroll Report</p>
-        <p className="text-xs text-slate-400 mb-3">
-          Based on {formatHours(totalHours)} hrs logged in the last 30 days
-          {hasRate ? ` at ${formatCurrency(employee.hourlyRate)}/hr.` : '.'}
-        </p>
+      {/* ── 4. Monthly Payroll Report ── */}
+      <div className="bg-white rounded-xl shadow-sm p-5">
+        <p className="text-xs uppercase tracking-wide font-semibold text-slate-400">Monthly Payroll Report</p>
+
+        {hasRate ? (
+          <p className="text-slate-700 my-3 text-sm">
+            Based on {monthHours.toFixed(1)} hrs logged this month at €{hourlyRate.toFixed(2)}/hr
+            {' → '}
+            <span className="font-semibold">€{(monthHours * hourlyRate).toFixed(2)}</span>
+          </p>
+        ) : (
+          <p className="text-slate-400 text-sm my-3">
+            No hourly rate set.{' '}
+            {isAdminOrManager
+              ? 'Edit the employee record to add one.'
+              : 'Contact your manager to set it.'}
+          </p>
+        )}
+
         <button
           onClick={handleGenerateReport}
           disabled={calculating || !hasRate}
-          className="w-full px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {calculating ? 'Generating…' : 'Generate Report'}
+          {calculating ? 'Generating…' : '↓ Generate Report (.pdf)'}
         </button>
-        {!hasRate && (
-          <p className="text-xs text-red-500 mt-2">
-            A hourly rate must be set before a report can be generated.
-          </p>
-        )}
       </div>
 
-      {/* Report card */}
+      {/* Report result — rendering unchanged from original */}
       {report && (
-        <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-lg p-6 mb-5 animate-fadeIn">
+        <div className="bg-white ring-1 ring-slate-200 shadow-sm rounded-xl p-6 animate-fadeIn">
           <div className="border-b border-slate-100 mb-4 pb-4">
             <h3 className="text-base font-bold text-slate-900">{report.header.company}</h3>
             <p className="text-sm text-slate-500">{report.header.report_type} — {report.header.date}</p>
@@ -256,33 +371,62 @@ function PayrollPage({ user }) {
         </div>
       )}
 
-      {/* Recent time log entries */}
-      {timelogs.length > 0 && (
-        <div className="bg-white ring-1 ring-slate-200 shadow-sm overflow-hidden rounded-lg">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h3 className="text-sm font-semibold text-slate-900">Recent Entries</h3>
-          </div>
-          <ul className="divide-y divide-slate-50">
-            {timelogs.slice(0, 10).map((log) => (
-              <li key={log._id} className="px-5 py-3 flex items-center justify-between text-sm">
-                <div>
-                  <span className="font-medium text-slate-900">{formatDate(log.checkIn)}</span>
-                  {log.checkOut && (
-                    <span className="text-slate-400 ml-2">→ {formatDate(log.checkOut)}</span>
-                  )}
+      {/* ── 5. Recent Entries ── */}
+      {groupedEntries.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm p-5">
+          <h3 className="text-base font-semibold text-slate-900 mb-2">Recent entries</h3>
+
+          {groupedEntries.map(({ key, logs }) => {
+            const dailyTotal = logs.reduce((s, l) =>
+              s + (l.status === 'Active' ? elapsed / 3600 : (l.hoursWorked || 0)), 0
+            );
+
+            return (
+              <div key={key}>
+                <p className="text-sm font-semibold text-slate-700 mt-4 mb-2">{dayLabel(key)}</p>
+
+                {logs.map((log) => {
+                  const isActive  = log.status === 'Active';
+                  const duration  = isActive ? elapsed / 3600 : (log.hoursWorked || 0);
+                  const isLong    = !isActive && (log.hoursWorked || 0) > 16;
+
+                  return (
+                    <div
+                      key={log._id}
+                      className="flex justify-between items-center py-2"
+                      title={isLong ? 'Verify with HR' : undefined}
+                    >
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        {isLong && (
+                          <span className="bg-amber-50 text-amber-800 text-xs px-2 py-0.5 rounded flex-shrink-0">
+                            ⚠ Long session
+                          </span>
+                        )}
+                        <span>
+                          {fmtTime(log.checkIn)}
+                          {' → '}
+                          {isActive
+                            ? <span className="italic text-slate-400">in progress</span>
+                            : fmtTime(log.checkOut)
+                          }
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium text-slate-900 tabular-nums">
+                        {duration.toFixed(2)} hrs
+                      </span>
+                    </div>
+                  );
+                })}
+
+                <div className="text-xs uppercase tracking-wide text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                  Daily total: {dailyTotal.toFixed(2)} hrs
                 </div>
-                <div className="flex items-center gap-2">
-                  {log.status === 'Active' ? (
-                    <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Active</span>
-                  ) : (
-                    <span className="text-xs text-slate-500">{formatHours(log.hoursWorked)} hrs</span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            );
+          })}
         </div>
       )}
+
     </div>
   );
 }

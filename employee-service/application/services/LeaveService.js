@@ -300,8 +300,10 @@ class LeaveService {
       }
     }
 
-    const leaveTypes = await leaveRepo.findAllLeaveTypes();
-    const result = [];
+    const leaveTypes     = await leaveRepo.findAllLeaveTypes();
+    const result         = [];
+    const targetEmployee = await Employee.findByPk(targetEmployeeId);
+    const currentYear    = new Date().getFullYear();
 
     for (const lt of leaveTypes) {
       const breakdown = await leaveRepo.getLedgerBreakdown(targetEmployeeId, lt.id);
@@ -309,12 +311,23 @@ class LeaveService {
       const available = Math.round((breakdown.accrued + (breakdown.adjusted || 0) - breakdown.consumed - reserved) * 100) / 100;
       const upcoming  = await leaveRepo.getUpcomingApproved(targetEmployeeId, lt.id);
 
+      const allotment = lt.code === 'annual'
+        ? this.computeYearlyAccrualAmount(targetEmployee, currentYear)
+        : 20;
+      const consumptionThisYear = await leaveRepo.getConsumptionSinceDate(
+        targetEmployeeId, lt.id, `${currentYear}-01-01`,
+      );
+      const forfeitTarget    = Math.max(0, allotment - consumptionThisYear);
+      const currentNet       = breakdown.accrued + (breakdown.adjusted || 0) - breakdown.consumed;
+      const expiring_balance = Math.round(Math.max(0, currentNet - forfeitTarget) * 100) / 100;
+
       result.push({
         leave_type: { id: lt.id, code: lt.code, name: lt.name, is_paid: lt.isPaid },
         accrued:    Math.round(breakdown.accrued  * 100) / 100,
         consumed:   Math.round(breakdown.consumed * 100) / 100,
         reserved,
         available,
+        expiring_balance,
         upcoming_approved: upcoming.map((r) => ({
           request_id: r.id,
           start:      r.startDate,

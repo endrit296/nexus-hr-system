@@ -4,14 +4,7 @@ import Avatar from '../components/ui/Avatar';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
 import { showSuccess, showError } from '../utils/toast';
-
-function formatDateRange(start, end) {
-  const fmt = (s) => {
-    const [y, m, d] = String(s).slice(0, 10).split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-  return start === end ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
-}
+import { formatDateShort } from '../utils/formatDate';
 
 const STATUS_STYLE = {
   pending:   'bg-amber-50  text-amber-700',
@@ -129,7 +122,9 @@ function LeaveApprovalsPage({ user }) {
                     <p className="text-sm text-slate-700 mt-1">
                       <span className="font-medium">{req.leaveType?.name || 'Leave'}</span>
                       {' · '}
-                      {formatDateRange(req.startDate, req.endDate)}
+                      {req.startDate === req.endDate
+                        ? formatDateShort(req.startDate)
+                        : `${formatDateShort(req.startDate)} – ${formatDateShort(req.endDate)}`}
                       {' · '}
                       {req.workingDaysCount} day{req.workingDaysCount !== 1 ? 's' : ''}
                     </p>

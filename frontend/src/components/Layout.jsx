@@ -35,7 +35,7 @@ function Layout({ user, onLogout }) {
       case 'orgchart':         return <OrgChartPage />;
       case 'users':            return user.role === 'admin' ? <UserManagementPage currentUserId={user.id} /> : <DashboardHome user={user} />;
       case 'profile':          return <ProfilePage user={user} />;
-      case 'payroll':          return <PayrollPage />;
+      case 'payroll':          return <PayrollPage user={user} />;
       case 'leave-approvals':  return ['admin', 'manager'].includes(user.role) ? <LeaveApprovalsPage user={user} /> : <DashboardHome user={user} />;
       default:                 return <DashboardHome user={user} />;
     }

@@ -11,17 +11,7 @@ import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
 import LeaveModal from '../modals/LeaveModal';
 import { showSuccess, showError } from '../utils/toast';
-
-function formatDateShort(dateStr) {
-  if (!dateStr) return '—';
-  const [y, m, d] = String(dateStr).slice(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function formatDateRange(start, end) {
-  const fmt = (s) => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
-  return start === end ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
-}
+import { formatDateShort } from '../utils/formatDate';
 
 const LEAVE_STATUS_STYLE = {
   pending:   'bg-amber-50  text-amber-700',
@@ -239,10 +229,24 @@ function ProfilePage({ user }) {
   return (
     <>
       {/* ── Hero ── */}
-      <div className="relative h-40 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-500 mb-16">
-        <div className="absolute -bottom-10 left-8">
+      <div className="relative h-24 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-500 mb-12">
+        <div className="absolute -bottom-8 left-8">
           <Avatar firstName={firstName} lastName={lastName} size="lg" className="ring-4 ring-white shadow-lg" />
         </div>
+        {/* Profile completion indicator */}
+        {employee && (() => {
+          const fields = [employee.phone, employee.position, employee.hireDate, employee.department?.name];
+          const filled = fields.filter(Boolean).length;
+          const pct    = Math.round((filled / fields.length) * 100);
+          return pct < 100 ? (
+            <div className="absolute right-5 top-1/2 -translate-y-1/2 flex flex-col items-end gap-1">
+              <span className="text-white/90 text-xs font-semibold">Profile {pct}% complete</span>
+              <div className="w-28 h-1.5 rounded-full bg-white/30">
+                <div className="h-full rounded-full bg-white/90 transition-all duration-500" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          ) : null;
+        })()}
       </div>
 
       {/* ── Identity ── */}
@@ -338,16 +342,14 @@ function ProfilePage({ user }) {
           <div className={`grid gap-4 ${leaveBalance.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
             {leaveBalance.map((b) => (
               <div key={b.leave_type.id} className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{b.leave_type.name}</p>
-                    <p className="text-3xl font-extrabold text-slate-900 mt-1">{b.available}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">days available</p>
-                  </div>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${b.leave_type.is_paid ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {b.leave_type.is_paid ? 'Paid' : 'Unpaid'}
-                  </span>
-                </div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{b.leave_type.name}</p>
+                <p className="text-3xl font-extrabold text-slate-900 mt-1">{b.available}</p>
+                <p className="text-xs text-slate-400 mt-0.5">days available</p>
+                {b.expiring_balance > 0 && (
+                  <p className="text-xs text-amber-600 font-semibold mt-1">
+                    ⚠ {b.expiring_balance} day{b.expiring_balance !== 1 ? 's' : ''} may expire on 1 Jul
+                  </p>
+                )}
                 <div className="mt-4 flex gap-4 text-xs text-slate-500 border-t border-slate-50 pt-3">
                   <span><span className="font-semibold text-slate-700">{b.accrued}</span> accrued</span>
                   <span><span className="font-semibold text-slate-700">{b.consumed}</span> consumed</span>
@@ -375,7 +377,10 @@ function ProfilePage({ user }) {
                     {req.leaveType?.name || 'Leave'}
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {formatDateRange(req.startDate, req.endDate)} · {req.workingDaysCount} day{req.workingDaysCount !== 1 ? 's' : ''}
+                    {req.startDate === req.endDate
+                        ? formatDateShort(req.startDate)
+                        : `${formatDateShort(req.startDate)} – ${formatDateShort(req.endDate)}`}
+                      {' · '}{req.workingDaysCount} day{req.workingDaysCount !== 1 ? 's' : ''}
                   </p>
                 </div>
                 <LeaveStatusBadge status={req.status} />

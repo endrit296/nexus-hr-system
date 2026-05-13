@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  PieChart, Pie, Cell, Tooltip as PieTooltip,
   BarChart, Bar, XAxis, YAxis, Tooltip as BarTooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Tooltip as LineTooltip,
 } from 'recharts';
@@ -10,18 +9,23 @@ import StatusBadge from '../components/ui/StatusBadge';
 import DataTable from '../components/ui/DataTable';
 import Spinner from '../components/ui/Spinner';
 import { showError } from '../utils/toast';
+import { formatDateShort, formatRelative } from '../utils/formatDate';
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({ icon, label, value, bg, iconColor }) {
+function StatCard({ icon, label, value, bg, iconColor, onClick }) {
   return (
-    <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm p-5 hover:shadow-md hover:ring-brand-500/30 hover:-translate-y-0.5 transition-all duration-200">
+    <button
+      type="button"
+      onClick={onClick}
+      className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm p-5 text-left w-full hover:shadow-md hover:ring-brand-500/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
       <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center`}>
         <span className={`${iconColor} text-lg`}>{icon}</span>
       </div>
       <div className="text-2xl font-extrabold text-slate-900 mt-3">{value}</div>
       <div className="text-sm font-medium text-slate-500 mt-1">{label}</div>
-    </div>
+    </button>
   );
 }
 
@@ -38,9 +42,8 @@ function ChartCard({ title, children }) {
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 
-const STATUS_COLORS  = { active: '#22c55e', on_leave: '#f59e0b', inactive: '#94a3b8' };
-const DEPT_COLOR     = '#6366f1';
-const HIRE_COLOR     = '#6366f1';
+const DEPT_COLOR = '#6366f1';
+const HIRE_COLOR = '#6366f1';
 
 // ── Table columns ─────────────────────────────────────────────────────────────
 
@@ -58,23 +61,13 @@ const columns = [
       </div>
     ),
   },
-  { key: 'position',   label: 'Position',   render: (row) => row.position         || '—' },
-  { key: 'department', label: 'Department', render: (row) => row.department?.name  || '—' },
+  { key: 'position',   label: 'Position',   render: (row) => row.position        || '—' },
+  { key: 'department', label: 'Department', render: (row) => row.department?.name || '—' },
   { key: 'status',     label: 'Status',     render: (row) => <StatusBadge status={row.status} /> },
-  { key: 'hireDate',   label: 'Hire Date',  render: (row) => row.hireDate          || '—' },
+  { key: 'hireDate',   label: 'Hire Date',  render: (row) => formatDateShort(row.hireDate) },
 ];
 
 // ── Data helpers ──────────────────────────────────────────────────────────────
-
-function buildStatusData(employees) {
-  const counts = { active: 0, on_leave: 0, inactive: 0 };
-  employees.forEach((e) => { if (counts[e.status] !== undefined) counts[e.status]++; });
-  return [
-    { name: 'Active',   value: counts.active,   color: STATUS_COLORS.active   },
-    { name: 'On Leave', value: counts.on_leave,  color: STATUS_COLORS.on_leave },
-    { name: 'Inactive', value: counts.inactive,  color: STATUS_COLORS.inactive },
-  ].filter((d) => d.value > 0);
-}
 
 function buildDeptData(employees, departments) {
   const countMap = {};
@@ -102,35 +95,62 @@ function buildHireData(employees) {
   return months;
 }
 
+function isoWeekBounds() {
+  const now   = new Date();
+  const day   = now.getDay(); // 0=Sun
+  const mon   = new Date(now); mon.setDate(now.getDate() - ((day + 6) % 7)); mon.setHours(0, 0, 0, 0);
+  const sun   = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23, 59, 59, 999);
+  const toISO = (d) => d.toISOString().slice(0, 10);
+  return [toISO(mon), toISO(sun)];
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function DashboardHome({ onNavigate, user }) {
-  const [employees, setEmployees]             = useState([]);
-  const [departments, setDepartments]         = useState([]);
-  const [totalEmployees, setTotalEmployees]   = useState(0);
-  const [pendingLeave, setPendingLeave]       = useState([]);
-  const [loading, setLoading]                 = useState(true);
+  const [employees,      setEmployees]      = useState([]);
+  const [departments,    setDepartments]    = useState([]);
+  const [totalEmployees, setTotalEmployees] = useState(0);
+  const [upcomingLeave,  setUpcomingLeave]  = useState([]);
+  const [pendingLeave,   setPendingLeave]   = useState([]);
+  const [carryoverBanner, setCarryoverBanner] = useState(null); // { typeName, days }
+  const [loading,        setLoading]        = useState(true);
 
   const role = user?.role;
 
   useEffect(() => {
+    const [weekStart, weekEnd] = isoWeekBounds();
+
     const reqs = [
       client.get('/api/employees?limit=500'),
       client.get('/api/departments'),
+      client.get(`/api/v1/leave-requests?status=approved&startDateFrom=${weekStart}&startDateTo=${weekEnd}&limit=20`),
     ];
+
     if (role === 'admin') {
       reqs.push(client.get('/api/v1/leave-requests?all=true&status=pending&limit=5'));
     } else if (role === 'manager') {
       reqs.push(client.get('/api/v1/leave-requests?as=manager&status=pending&limit=5'));
     }
 
-    Promise.all(reqs).then(([empRes, deptRes, leaveRes]) => {
-      setEmployees(empRes.data.employees     || []);
+    Promise.all(reqs).then(([empRes, deptRes, weekLeaveRes, leaveRes]) => {
+      setEmployees(empRes.data.employees      || []);
       setDepartments(deptRes.data.departments || []);
       setTotalEmployees(empRes.data.pagination?.total ?? (empRes.data.employees?.length || 0));
+      setUpcomingLeave(weekLeaveRes.data?.requests || []);
       if (leaveRes) setPendingLeave(leaveRes.data?.requests || []);
     }).catch(() => showError('Failed to load dashboard data'))
       .finally(() => setLoading(false));
+
+    // Carryover banner — fetch own balance
+    client.get('/api/employees/me')
+      .then(({ data: emp }) => client.get(`/api/v1/employees/${emp.id}/leave-balance`))
+      .then(({ data: bal }) => {
+        const worst = (bal || []).reduce((best, b) => {
+          return b.expiring_balance > (best?.expiring_balance || 0) ? b : best;
+        }, null);
+        if (worst?.expiring_balance > 0) setCarryoverBanner({ typeName: worst.leave_type.name, days: worst.expiring_balance });
+      })
+      .catch(() => {});
   }, [role]);
 
   if (loading) return <Spinner />;
@@ -140,10 +160,9 @@ function DashboardHome({ onNavigate, user }) {
   const onLeave   = employees.filter((e) => e.status === 'on_leave').length;
   const deptCount = departments.length;
 
-  const recent     = [...employees].sort((a, b) => new Date(b.createdAt || b.hireDate || 0) - new Date(a.createdAt || a.hireDate || 0)).slice(0, 5);
-  const statusData = buildStatusData(employees);
-  const deptData   = buildDeptData(employees, departments);
-  const hireData   = buildHireData(employees);
+  const recent   = [...employees].sort((a, b) => new Date(b.createdAt || b.hireDate || 0) - new Date(a.createdAt || a.hireDate || 0)).slice(0, 5);
+  const deptData = buildDeptData(employees, departments);
+  const hireData = buildHireData(employees);
 
   return (
     <div>
@@ -157,34 +176,33 @@ function DashboardHome({ onNavigate, user }) {
         </div>
       </div>
 
+      {/* ── Carryover reminder banner ── */}
+      {carryoverBanner && (
+        <div className="mb-6 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+          <span className="text-amber-500 text-lg flex-shrink-0">⚠</span>
+          <p className="text-sm text-amber-800 flex-1">
+            <span className="font-semibold">{carryoverBanner.days} day{carryoverBanner.days !== 1 ? 's' : ''}</span> of {carryoverBanner.typeName} may be forfeited on 1 July if unused.
+          </p>
+          <button
+            type="button"
+            className="text-xs text-amber-700 font-semibold hover:underline flex-shrink-0"
+            onClick={() => onNavigate?.('profile')}
+          >
+            View balance →
+          </button>
+        </div>
+      )}
+
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
-        <StatCard icon="👥" label="Total Employees" value={total}     bg="bg-brand-50"  iconColor="text-brand-600" />
-        <StatCard icon="✅" label="Active"           value={active}    bg="bg-green-50"  iconColor="text-green-600" />
-        <StatCard icon="🏖️" label="On Leave"         value={onLeave}   bg="bg-amber-50"  iconColor="text-amber-600" />
-        <StatCard icon="🏢" label="Departments"      value={deptCount} bg="bg-indigo-50" iconColor="text-indigo-600" />
+        <StatCard icon="👥" label="Total Employees" value={total}     bg="bg-brand-50"  iconColor="text-brand-600" onClick={() => onNavigate?.('employees')} />
+        <StatCard icon="✅" label="Active"           value={active}    bg="bg-green-50"  iconColor="text-green-600" onClick={() => onNavigate?.('employees')} />
+        <StatCard icon="🏖️" label="On Leave"         value={onLeave}   bg="bg-amber-50"  iconColor="text-amber-600" onClick={() => onNavigate?.('employees')} />
+        <StatCard icon="🏢" label="Departments"      value={deptCount} bg="bg-indigo-50" iconColor="text-indigo-600" onClick={() => onNavigate?.('departments')} />
       </div>
 
       {/* ── Analytics charts ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-
-        {/* Employees by status — Pie */}
-        <ChartCard title="Employees by Status">
-          {statusData.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-8">No data yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                  {statusData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <PieTooltip formatter={(v, n) => [v, n]} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
 
         {/* Headcount per department — Bar */}
         <ChartCard title="Headcount by Department">
@@ -202,9 +220,9 @@ function DashboardHome({ onNavigate, user }) {
           )}
         </ChartCard>
 
-        {/* Monthly hire trend — Line (spans full width) */}
+        {/* Monthly hire trend — Line */}
         <ChartCard title="Monthly Hire Trend (last 6 months)">
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={200}>
             <LineChart data={hireData} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
@@ -217,37 +235,81 @@ function DashboardHome({ onNavigate, user }) {
 
       </div>
 
-      {/* ── Pending Leave Approvals widget (manager/admin only) ── */}
-      {(role === 'admin' || role === 'manager') && (
-        <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden mb-8">
+      {/* ── What's happening this week ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+
+        {/* Upcoming leave this week */}
+        <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-md font-semibold text-slate-900">On Leave This Week</h2>
+          </div>
+          {upcomingLeave.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-slate-400 text-center">No approved leave this week.</div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {upcomingLeave.map((req) => (
+                <div key={req.id} className="flex items-center gap-3 px-5 py-3">
+                  <Avatar
+                    firstName={req.employee?.firstName || '?'}
+                    lastName={req.employee?.lastName  || ''}
+                    size="sm"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Unknown'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {req.leaveType?.name || 'Leave'} · {formatDateShort(req.startDate)}
+                      {req.startDate !== req.endDate && ` – ${formatDateShort(req.endDate)}`}
+                    </p>
+                  </div>
+                  <span className="text-xs bg-green-50 text-green-700 font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0">
+                    approved
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pending approvals (manager/admin) or my pending requests (employee) */}
+        <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
             <h2 className="text-md font-semibold text-slate-900">
-              Pending Leave Approvals
+              {role === 'employee' ? 'My Pending Requests' : 'Pending Approvals'}
               {pendingLeave.length > 0 && (
                 <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
                   {pendingLeave.length}
                 </span>
               )}
             </h2>
-            <span
-              className="text-sm text-brand-600 font-semibold hover:underline cursor-pointer"
-              onClick={() => onNavigate?.('leave-approvals')}
-            >
-              View all →
-            </span>
+            {role !== 'employee' && (
+              <button
+                type="button"
+                className="text-sm text-brand-600 font-semibold hover:underline"
+                onClick={() => onNavigate?.('leave-approvals')}
+              >
+                View all →
+              </button>
+            )}
           </div>
           {pendingLeave.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-slate-400 text-center">No pending requests.</div>
+            <div className="px-5 py-6 text-sm text-slate-400 text-center">
+              {role === 'employee' ? 'No pending requests.' : 'No pending requests to review.'}
+            </div>
           ) : (
             <div className="divide-y divide-slate-50">
               {pendingLeave.map((req) => (
                 <div key={req.id} className="flex items-center gap-4 px-5 py-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-900 truncate">
-                      {req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Unknown'}
+                      {role === 'employee'
+                        ? req.leaveType?.name || 'Leave'
+                        : req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Unknown'}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {req.leaveType?.name || 'Leave'} · {req.workingDaysCount} day{req.workingDaysCount !== 1 ? 's' : ''}
+                      {role !== 'employee' && `${req.leaveType?.name || 'Leave'} · `}
+                      {formatRelative(req.submittedAt)}
                     </p>
                   </div>
                   <span className="text-xs bg-amber-50 text-amber-700 font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0">
@@ -258,7 +320,8 @@ function DashboardHome({ onNavigate, user }) {
             </div>
           )}
         </div>
-      )}
+
+      </div>
 
       {/* ── Recent hires table ── */}
       <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
@@ -273,12 +336,13 @@ function DashboardHome({ onNavigate, user }) {
         />
 
         <div className="px-5 py-3 border-t border-slate-100">
-          <span
-            className="text-sm text-brand-600 font-semibold hover:underline cursor-pointer"
+          <button
+            type="button"
+            className="text-sm text-brand-600 font-semibold hover:underline"
             onClick={() => onNavigate?.('employees')}
           >
             View all employees →
-          </span>
+          </button>
         </div>
       </div>
     </div>
