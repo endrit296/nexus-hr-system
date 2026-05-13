@@ -1,12 +1,28 @@
-const express = require('express');
-const jwt     = require('jsonwebtoken');
-const Joi     = require('joi');
+const express    = require('express');
+const jwt        = require('jsonwebtoken');
+const Joi        = require('joi');
+const rateLimit  = require('express-rate-limit');
 
 const authService = require('../application/services/AuthService');
 const userService = require('../application/services/UserService');
 
 const router     = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'nexus_jwt_secret_change_in_production';
+
+// ── Brute-force protection ───────────────────────────────────────────────────
+// 5 login attempts per 15 minutes per IP+email combination.
+// Falls back to in-memory store; swap MemoryStore for rate-limit-redis when
+// Redis is wired into this service for cross-replica persistence.
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${req.ip}:${(req.body?.email || '').toLowerCase()}`,
+  message: { message: 'Too many login attempts, please try again later' },
+  // Skip in test environment so the unit-test suite (53 tests) is not rate-limited.
+  skip: () => process.env.NODE_ENV === 'test',
+});
 
 // ── Validation schemas ───────────────────────────────────────────────────────
 
@@ -84,7 +100,7 @@ router.post('/register', handle(async (req) => {
 
 // ── POST /auth/login ─────────────────────────────────────────────────────────
 
-router.post('/login', handle(async (req) => {
+router.post('/login', loginRateLimiter, handle(async (req) => {
   const { error, value } = loginSchema.validate(req.body);
   if (error) return Object.assign({ message: error.details[0].message }, { _status: 400 });
   return authService.login({ ...value, ipAddress: ip(req) });

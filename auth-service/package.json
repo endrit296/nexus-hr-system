@@ -11,7 +11,9 @@
     "lint": "npx --yes eslint@8 . --ext .js"
   },
   "jest": {
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
     "testTimeout": 120000,
     "collectCoverageFrom": [
       "routes/**/*.js",
@@ -20,13 +22,17 @@
       "models/**/*.js"
     ],
     "coverageThreshold": {
-      "global": { "lines": 80, "functions": 80 }
+      "global": {
+        "lines": 80,
+        "functions": 80
+      }
     }
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^8.0.0",
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
