@@ -110,9 +110,10 @@ function DashboardHome({ onNavigate, user }) {
   const [employees,      setEmployees]      = useState([]);
   const [departments,    setDepartments]    = useState([]);
   const [totalEmployees, setTotalEmployees] = useState(0);
-  const [upcomingLeave,  setUpcomingLeave]  = useState([]);
-  const [pendingLeave,   setPendingLeave]   = useState([]);
-  const [carryoverBanner, setCarryoverBanner] = useState(null); // { typeName, days }
+  const [upcomingLeave,    setUpcomingLeave]    = useState([]);
+  const [pendingLeave,     setPendingLeave]     = useState([]);
+  const [myRecentRequests, setMyRecentRequests] = useState([]);
+  const [carryoverBanner,  setCarryoverBanner]  = useState(null); // { typeName, days }
   const [loading,        setLoading]        = useState(true);
 
   const role = user?.role;
@@ -130,6 +131,10 @@ function DashboardHome({ onNavigate, user }) {
       reqs.push(client.get('/api/v1/leave-requests?all=true&status=pending&limit=5'));
     } else if (role === 'manager') {
       reqs.push(client.get('/api/v1/leave-requests?as=manager&status=pending&limit=5'));
+    } else {
+      client.get('/api/v1/leave-requests?limit=5')
+        .then(({ data }) => setMyRecentRequests(data?.requests || []))
+        .catch(() => {});
     }
 
     Promise.all(reqs).then(([empRes, deptRes, weekLeaveRes, leaveRes]) => {
@@ -272,12 +277,12 @@ function DashboardHome({ onNavigate, user }) {
           )}
         </div>
 
-        {/* Pending approvals (manager/admin) or my pending requests (employee) */}
+        {/* Pending approvals (manager/admin) or my recent requests (employee) */}
         <div className="bg-white rounded-lg ring-1 ring-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
             <h2 className="text-md font-semibold text-slate-900">
-              {role === 'employee' ? 'My Pending Requests' : 'Pending Approvals'}
-              {pendingLeave.length > 0 && (
+              {role === 'employee' ? 'My Recent Requests' : 'Pending Approvals'}
+              {role !== 'employee' && pendingLeave.length > 0 && (
                 <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
                   {pendingLeave.length}
                 </span>
@@ -292,32 +297,84 @@ function DashboardHome({ onNavigate, user }) {
                 View all →
               </button>
             )}
+            {role === 'employee' && (
+              <button
+                type="button"
+                className="text-sm text-brand-600 font-semibold hover:underline"
+                onClick={() => onNavigate?.('profile')}
+              >
+                View all →
+              </button>
+            )}
           </div>
-          {pendingLeave.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-slate-400 text-center">
-              {role === 'employee' ? 'No pending requests.' : 'No pending requests to review.'}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-50">
-              {pendingLeave.map((req) => (
-                <div key={req.id} className="flex items-center gap-4 px-5 py-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">
-                      {role === 'employee'
-                        ? req.leaveType?.name || 'Leave'
-                        : req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Unknown'}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {role !== 'employee' && `${req.leaveType?.name || 'Leave'} · `}
-                      {formatRelative(req.submittedAt)}
-                    </p>
+
+          {/* Employee variant — recent requests with decision notes */}
+          {role === 'employee' && (
+            myRecentRequests.length === 0 ? (
+              <div className="px-5 py-6 text-sm text-slate-400 text-center">No leave requests yet.</div>
+            ) : (
+              <div className="divide-y divide-slate-50">
+                {myRecentRequests.map((req) => (
+                  <div key={req.id} className="px-5 py-3">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">
+                          {req.leaveType?.name || 'Leave'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {formatDateShort(req.startDate)}
+                          {req.startDate !== req.endDate && ` – ${formatDateShort(req.endDate)}`}
+                          {' · '}{req.workingDaysCount} day{req.workingDaysCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 ${
+                        req.status === 'approved'  ? 'bg-green-50 text-green-700'  :
+                        req.status === 'rejected'  ? 'bg-red-50 text-red-700'      :
+                        req.status === 'withdrawn' ? 'bg-slate-100 text-slate-500' :
+                                                     'bg-amber-50 text-amber-700'
+                      }`}>
+                        {req.status}
+                      </span>
+                    </div>
+                    {req.decisionNote && req.status === 'rejected' && (
+                      <p className="text-xs text-red-700 italic mt-1 truncate" title={req.decisionNote}>
+                        Rejected: {req.decisionNote}
+                      </p>
+                    )}
+                    {req.decisionNote && req.status === 'approved' && (
+                      <p className="text-xs text-slate-500 italic mt-1 truncate" title={req.decisionNote}>
+                        Note: {req.decisionNote}
+                      </p>
+                    )}
                   </div>
-                  <span className="text-xs bg-amber-50 text-amber-700 font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0">
-                    pending
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {/* Manager/admin variant — pending approvals */}
+          {role !== 'employee' && (
+            pendingLeave.length === 0 ? (
+              <div className="px-5 py-6 text-sm text-slate-400 text-center">No pending requests to review.</div>
+            ) : (
+              <div className="divide-y divide-slate-50">
+                {pendingLeave.map((req) => (
+                  <div key={req.id} className="flex items-center gap-4 px-5 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">
+                        {req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Unknown'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {req.leaveType?.name || 'Leave'} · {formatRelative(req.submittedAt)}
+                      </p>
+                    </div>
+                    <span className="text-xs bg-amber-50 text-amber-700 font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0">
+                      pending
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
 

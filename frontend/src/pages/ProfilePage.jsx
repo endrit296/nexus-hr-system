@@ -394,6 +394,16 @@ function ProfilePage({ user }) {
                   </button>
                 )}
               </div>
+              {req.decisionNote && req.status === 'rejected' && (
+                <p className="text-sm text-red-700 italic mt-1 px-5 pb-2">
+                  Rejected: {req.decisionNote}
+                </p>
+              )}
+              {req.decisionNote && req.status === 'approved' && (
+                <p className="text-sm text-slate-600 italic mt-1 px-5 pb-2">
+                  Note from manager: {req.decisionNote}
+                </p>
+              )}
             ))}
           </div>
         </div>
