@@ -61,7 +61,7 @@ config:
   redisUrl:          "redis://redis:6379"
   rabbitmqUrl:       "amqp://rabbitmq:5672"
   authServiceUrl:    "http://auth-service:3001"
-  employeeServiceUrl:"http://employee-service:3002"
+  employeeServiceUrl: "http://employee-service:3002"
   payrollServiceUrl: "http://time-tracking-service:3005"
   employeeGrpcUrl:   "employee-service:50051"
   gatewayHost:       api-gateway
