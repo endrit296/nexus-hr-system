@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "start:prod": "npx sequelize-cli db:migrate && node index.js",
     "dev": "nodemon index.js",
     "test": "jest --testEnvironment node --forceExit",
     "test:coverage": "jest --testEnvironment node --forceExit --coverage",
