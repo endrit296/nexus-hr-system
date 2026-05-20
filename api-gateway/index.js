@@ -15,7 +15,7 @@ const swaggerUi                   = require('swagger-ui-express');
 const { createProxyMiddleware }   = require('http-proxy-middleware');
 const logger                      = require('./logger');
 const { swaggerSpec }             = require('./swagger');
-const { getPort, getRequiredEnv, getServiceUrl } = require('./config');
+const { getAllowedOrigins, getPort, getRequiredEnv, getServiceUrl } = require('./config');
 
 const app  = express();
 const PORT = getPort();
@@ -43,7 +43,24 @@ app.use(helmet({
 }));
 
 // CORS
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost', 'https://localhost'] }));
+const allowedOrigins = getAllowedOrigins();
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow server-to-server requests and same-origin requests with no Origin header.
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS origin not allowed: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'Content-Type'],
+}));
 
 // API version header
 app.use((_req, res, next) => { res.setHeader('X-API-Version', '1.0'); next(); });

@@ -15,4 +15,20 @@ const getServiceUrl = () =>
   process.env.RENDER_EXTERNAL_URL ||
   `http://localhost:${getPort()}`;
 
-module.exports = { getPort, getRequiredEnv, getServiceUrl };
+const parseCsv = (value) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const getAllowedOrigins = () => {
+  const configured = process.env.CORS_ALLOWED_ORIGINS;
+
+  if (configured) {
+    return parseCsv(configured);
+  }
+
+  return ['http://localhost:5173', 'http://localhost', 'https://localhost'];
+};
+
+module.exports = { getAllowedOrigins, getPort, getRequiredEnv, getServiceUrl };
