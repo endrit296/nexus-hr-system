@@ -6,8 +6,9 @@ const userRepository         = require('../../infrastructure/repositories/UserRe
 const refreshTokenRepository = require('../../infrastructure/repositories/RefreshTokenRepository');
 const auditLogRepository     = require('../../infrastructure/repositories/AuditLogRepository');
 const emailService           = require('../../infrastructure/email/EmailService');
+const { getRequiredEnv }     = require('../../config');
 
-const JWT_SECRET           = process.env.JWT_SECRET || 'nexus_jwt_secret_change_in_production';
+const JWT_SECRET           = getRequiredEnv('JWT_SECRET');
 const ACCESS_TOKEN_TTL     = '15m';
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 

@@ -5,6 +5,8 @@ jest.mock('../models/User');
 jest.mock('../models/RefreshToken');
 jest.mock('../models/AuditLog');
 
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret';
+
 const express      = require('express');
 const request      = require('supertest');
 const bcrypt       = require('bcryptjs');

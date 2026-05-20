@@ -11,6 +11,8 @@ jest.mock('../../models/User');
 jest.mock('../../models/RefreshToken');
 jest.mock('../../models/AuditLog');
 
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret';
+
 const express      = require('express');
 const rateLimit    = require('express-rate-limit');
 const request      = require('supertest');

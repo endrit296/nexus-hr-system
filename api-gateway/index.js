@@ -19,11 +19,21 @@ const { swaggerSpec }             = require('./swagger');
 const app  = express();
 const PORT = process.env.PORT || 8080;
 
+const getRequiredEnv = (name) => {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`${name} environment variable is required`);
+  }
+
+  return value;
+};
+
 // ── Env ───────────────────────────────────────────────────────────────────────
-const JWT_SECRET       = process.env.JWT_SECRET           || 'nexus_jwt_secret_change_in_production';
-const AUTH_SERVICE     = process.env.AUTH_SERVICE_URL     || 'http://localhost:3001';
-const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE_URL || 'http://localhost:3002';
-const PAYROLL_SERVICE  = process.env.PAYROLL_SERVICE_URL  || 'http://localhost:3005';
+const JWT_SECRET       = getRequiredEnv('JWT_SECRET');
+const AUTH_SERVICE     = process.env.AUTH_SERVICE_URL     || 'https://auth-service.onrender.com';
+const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE_URL || 'https://employee-service.onrender.com';
+const PAYROLL_SERVICE  = process.env.PAYROLL_SERVICE_URL  || 'https://payroll-service.onrender.com';
 
 // ── Security headers (Helmet) ─────────────────────────────────────────────────
 app.use(helmet({

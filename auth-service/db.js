@@ -1,13 +1,11 @@
 const mongoose = require('mongoose');
 const logger   = require('./logger');
+const { getRequiredEnv } = require('./config');
 require('dotenv').config();
-
-// MongoDB connection string — update MONGO_URI in a .env file for your environment
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/nexus_auth';
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(MONGO_URI);
+    await mongoose.connect(getRequiredEnv('MONGODB_URI'));
     logger.info('MongoDB connected successfully');
   } catch (error) {
     logger.error(`MongoDB connection error: ${error.message}`);
