@@ -2,6 +2,7 @@ const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
 
+const logger                 = require('../../logger');
 const userRepository         = require('../../infrastructure/repositories/UserRepository');
 const refreshTokenRepository = require('../../infrastructure/repositories/RefreshTokenRepository');
 const auditLogRepository     = require('../../infrastructure/repositories/AuditLogRepository');
@@ -11,6 +12,7 @@ const { getRequiredEnv }     = require('../../config');
 const JWT_SECRET           = getRequiredEnv('JWT_SECRET');
 const ACCESS_TOKEN_TTL     = '15m';
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const EMAIL_SEND_TIMEOUT_MS = 10000;
 
 const signAccessToken = (user) =>
   jwt.sign(
@@ -20,6 +22,14 @@ const signAccessToken = (user) =>
   );
 
 const serviceError = (message, status) => Object.assign(new Error(message), { status });
+
+const sendWithTimeout = (promise, timeoutMs) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Email send timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ]);
 
 class AuthService {
   async register({ username, email, password, ipAddress }) {
@@ -44,13 +54,26 @@ class AuthService {
       activationTokenExpiry,
     });
 
-    await emailService.sendActivationEmail(user, activationToken);
+    let emailSent = true;
+    try {
+      await sendWithTimeout(
+        emailService.sendActivationEmail(user, activationToken),
+        EMAIL_SEND_TIMEOUT_MS
+      );
+    } catch (error) {
+      emailSent = false;
+      logger.warn(`[AuthService] Activation email failed for ${email}: ${error.message}`);
+    }
 
     await auditLogRepository.create({
       userId: user._id, username: user.username, action: 'REGISTER', details: { email }, ipAddress,
     });
 
-    return { message: 'Registration successful. Please check your email to activate your account.' };
+    return {
+      message: emailSent
+        ? 'Registration successful. Please check your email to activate your account.'
+        : 'Registration successful, but the activation email could not be sent right now. Please contact an admin or try again later.',
+    };
   }
 
   async login({ email, password, ipAddress }) {

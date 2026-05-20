@@ -35,6 +35,7 @@ function Login({ onLogin }) {
   const [loading, setLoading]         = useState(false);
   const [serverError, setServerError] = useState('');
   const [registered, setRegistered]   = useState(false);
+  const [registeredMessage, setRegisteredMessage] = useState('');
 
   const lf = useForm({ resolver: zodResolver(loginSchema),    mode: 'onChange' });
   const rf = useForm({ resolver: zodResolver(registerSchema), mode: 'onChange' });
@@ -43,6 +44,7 @@ function Login({ onLogin }) {
     setMode(m);
     setServerError('');
     setRegistered(false);
+    setRegisteredMessage('');
     lf.reset();
     rf.reset();
   };
@@ -65,9 +67,10 @@ function Login({ onLogin }) {
     setServerError('');
     try {
       const username = `${firstName}${lastName}`.toLowerCase().replace(/[^a-z0-9]/g, '');
-      await client.post('/api/auth/register', { username, email, password });
+      const { data } = await client.post('/api/auth/register', { username, email, password });
       // Registration now requires email verification — show success message
       setRegistered(true);
+      setRegisteredMessage(data.message || 'Registration successful.');
     } catch (err) {
       setServerError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
@@ -131,10 +134,8 @@ function Login({ onLogin }) {
           {registered ? (
             <div className="text-center py-6">
               <div className="text-5xl mb-4">📧</div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">Check your email</h2>
-              <p className="text-sm text-slate-500 mb-6">
-                We sent an activation link to your email address. Click the link to activate your account before signing in.
-              </p>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">Account created</h2>
+              <p className="text-sm text-slate-500 mb-6">{registeredMessage}</p>
               <Button variant="primary" className="w-full" onClick={() => switchMode('login')}>
                 Back to Sign in
               </Button>
