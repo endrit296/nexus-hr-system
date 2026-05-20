@@ -1,19 +1,15 @@
 import axios from 'axios';
 import useAuthStore from '../store/useAuthStore';
-
-// Dev: http://localhost:8080 (API Gateway directly)
-// Docker: http://localhost (Nginx load balancer on port 80)
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+import { API_BASE_URL, AUTH_ENDPOINTS, PUBLIC_AUTH_ENDPOINTS } from './config';
+import { clearAuthSession, getAccessToken, getRefreshToken } from './authStorage';
 
 const client = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
 });
 
 let refreshPromise = null;
 
-const AUTH_NO_REFRESH = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/logout'];
-
-const isAuthExcluded = (url = '') => AUTH_NO_REFRESH.some((path) => url.includes(path));
+const isAuthExcluded = (url = '') => PUBLIC_AUTH_ENDPOINTS.some((path) => url.includes(path));
 
 const isTokenExpired = (token) => {
   if (!token) return true;
@@ -28,25 +24,35 @@ const isTokenExpired = (token) => {
   }
 };
 
+const redirectToLogin = () => {
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+};
+
+const forceLogout = () => {
+  clearAuthSession();
+  useAuthStore.getState().logout();
+  redirectToLogin();
+};
+
 const refreshAccessToken = async () => {
   if (refreshPromise) return refreshPromise;
 
-  const refreshToken = localStorage.getItem('refreshToken');
+  const refreshToken = getRefreshToken();
   if (!refreshToken) {
-    localStorage.clear();
-    window.location.href = '/login';
+    forceLogout();
     throw new Error('Missing refresh token');
   }
 
   refreshPromise = axios
-    .post(`${BASE_URL}/api/auth/refresh`, { refreshToken })
+    .post(`${API_BASE_URL}${AUTH_ENDPOINTS.refresh}`, { refreshToken })
     .then(({ data }) => {
       useAuthStore.getState().setToken(data.token);
       return data.token;
     })
     .catch((error) => {
-      localStorage.clear();
-      window.location.href = '/login';
+      forceLogout();
       throw error;
     })
     .finally(() => {
@@ -60,7 +66,7 @@ const refreshAccessToken = async () => {
 client.interceptors.request.use(async (config) => {
   if (isAuthExcluded(config.url)) return config;
 
-  let token = localStorage.getItem('token');
+  let token = getAccessToken();
   if (isTokenExpired(token)) {
     token = await refreshAccessToken();
   }

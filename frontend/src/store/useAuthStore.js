@@ -1,28 +1,41 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+  setAccessToken,
+  setAuthSession,
+  setStoredUser,
+} from '../api/authStorage';
 
 const useAuthStore = create(
   persist(
     (set) => ({
-      user:         null,
-      token:        null,
-      refreshToken: null,
+      user:         getStoredUser(),
+      token:        getAccessToken(),
+      refreshToken: getRefreshToken(),
 
       login: (user, token, refreshToken) => {
-        localStorage.setItem('token',        token);
-        localStorage.setItem('refreshToken', refreshToken);
+        setAuthSession({ user, token, refreshToken });
         set({ user, token, refreshToken });
       },
 
       logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('nexus_user');
+        clearAuthSession();
         set({ user: null, token: null, refreshToken: null });
       },
 
-      setUser:  (user)  => set({ user }),
-      setToken: (token) => { localStorage.setItem('token', token); set({ token }); },
+      setUser: (user) => {
+        setStoredUser(user);
+        set({ user });
+      },
+
+      setToken: (token) => {
+        setAccessToken(token);
+        set({ token });
+      },
     }),
     {
       name:    'nexus_auth',
