@@ -1,7 +1,9 @@
 const amqp = require('amqplib');
 const logger = require('./logger');
+const { getRabbitMqUrl } = require('./runtimeConfig');
 
 const QUEUE = 'employee_events';
+let hasLoggedRabbitMqDisabled = false;
 
 const handleEvent = (event, data) => {
   switch (event) {
@@ -20,7 +22,15 @@ const handleEvent = (event, data) => {
 };
 
 const startConsumer = async () => {
-  const url = process.env.RABBITMQ_URL || 'amqp://rabbitmq:5672';
+  const url = getRabbitMqUrl();
+
+  if (!url) {
+    if (!hasLoggedRabbitMqDisabled) {
+      logger.info('[Consumer] RABBITMQ_URL is not configured; consumer disabled.');
+      hasLoggedRabbitMqDisabled = true;
+    }
+    return;
+  }
 
   const tryConnect = async (retries = 5, delay = 3000) => {
     for (let i = 0; i < retries; i++) {

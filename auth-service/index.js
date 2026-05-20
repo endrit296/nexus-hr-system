@@ -4,6 +4,7 @@ const morgan     = require('morgan');
 const connectDB  = require('./db');
 const authRoutes = require('./routes/auth');
 const logger     = require('./logger');
+const { getServiceUrl } = require('./config');
 const { register, startHeartbeat } = require('./registerService');
 
 const app  = express();
@@ -21,7 +22,7 @@ app.get('/',       (_req, res) => res.send('Auth Service Online'));
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'auth-service' }));
 
 app.listen(PORT, async () => {
-  logger.info(`Auth Service running on http://localhost:${PORT}`);
+  logger.info(`Auth Service running on ${getServiceUrl()}`);
   await register();
   startHeartbeat();
 });

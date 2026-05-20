@@ -49,7 +49,7 @@ services:
     expose:
       - '3001'
     environment:
-      - MONGO_URI=mongodb://mongo:27017/nexus_auth
+      - MONGODB_URI=mongodb://mongo:27017/nexus_auth
       - JWT_SECRET=${JWT_SECRET:-nexus_jwt_secret_change_in_production}
       - PORT=3001
       - RABBITMQ_URL=amqp://rabbitmq:5672

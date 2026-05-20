@@ -5,10 +5,11 @@ const { requireRole } = require('../middleware/auth');
 const employeeService = require('../application/services/EmployeeService');
 const leaveService    = require('../application/services/LeaveService');
 const { sendToQueue } = require('../messenger');
+const { getPublicBaseUrl } = require('../runtimeConfig');
 const logger          = require('../logger');
 
 const router   = express.Router();
-const BASE     = process.env.GATEWAY_URL || 'http://localhost:8080';
+const BASE     = getPublicBaseUrl();
 
 const EMPLOYEE_CACHE_KEYS = [
   'employees:page:1:limit:20',

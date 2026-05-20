@@ -3,9 +3,10 @@ const Joi               = require('joi');
 const cache             = require('../cache');
 const { requireRole }   = require('../middleware/auth');
 const departmentService = require('../application/services/DepartmentService');
+const { getPublicBaseUrl } = require('../runtimeConfig');
 
 const router = express.Router();
-const BASE   = process.env.GATEWAY_URL || 'http://localhost:8080';
+const BASE   = getPublicBaseUrl();
 
 const deptLinks = (d) => ({
   self:       { href: `${BASE}/api/v1/departments/${d.id}`, method: 'GET'    },

@@ -16,6 +16,7 @@ const { startLeaveJobs } = require('./jobs/leaveJobs');
 const { startConsumer }         = require('./consumer');
 const { startGrpcServer }       = require('./grpc/server');
 const { register, startHeartbeat } = require('./registerService');
+const { getServiceUrl, isGrpcEnabled } = require('./runtimeConfig');
 const logger     = require('./logger');
 
 const app  = express();
@@ -79,12 +80,16 @@ const startServer = async () => {
   await seedLeaveTypes();
   startLeaveJobs();
   app.listen(PORT, async () => {
-    logger.info(`Employee Service running on http://localhost:${PORT}`);
+    logger.info(`Employee Service running on ${getServiceUrl()}`);
     await register();
     startHeartbeat();
   });
   startConsumer();  // RabbitMQ consumer — non-blocking, retries internally
-  startGrpcServer(); // gRPC server on port 50051
+  if (isGrpcEnabled()) {
+    startGrpcServer();
+  } else {
+    logger.info('[gRPC] Disabled for this deployment');
+  }
 };
 
 startServer();
