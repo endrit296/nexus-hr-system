@@ -15,6 +15,13 @@ const getServiceUrl = () =>
   process.env.RENDER_EXTERNAL_URL ||
   `http://localhost:${getPort()}`;
 
+const DEFAULT_CORS_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost',
+  'https://localhost',
+  'https://nexus-hr-frontend.onrender.com',
+];
+
 const parseCsv = (value) =>
   value
     .split(',')
@@ -28,7 +35,7 @@ const getAllowedOrigins = () => {
     return parseCsv(configured);
   }
 
-  return ['http://localhost:5173', 'http://localhost', 'https://localhost'];
+  return DEFAULT_CORS_ORIGINS;
 };
 
 module.exports = { getAllowedOrigins, getPort, getRequiredEnv, getServiceUrl };
