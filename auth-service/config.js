@@ -10,6 +10,16 @@ const getRequiredEnv = (name) => {
 
 const getPort = () => process.env.PORT || '3001';
 
+const getMongoDbUri = () => {
+  const uri = getRequiredEnv('MONGODB_URI').trim();
+
+  if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+    throw new Error('MONGODB_URI must start with "mongodb://" or "mongodb+srv://"');
+  }
+
+  return uri;
+};
+
 const getServiceUrl = () =>
   process.env.SERVICE_URL ||
   process.env.RENDER_EXTERNAL_URL ||
@@ -28,4 +38,4 @@ const getGatewayUrl = () => {
   return null;
 };
 
-module.exports = { getGatewayUrl, getPort, getRequiredEnv, getServiceUrl };
+module.exports = { getGatewayUrl, getMongoDbUri, getPort, getRequiredEnv, getServiceUrl };
