@@ -161,6 +161,8 @@ const makeProxy = (target, targetPrefix) => {
   const proxy = createProxyMiddleware({
     target,
     changeOrigin: true,
+    proxyTimeout: 35000,
+    timeout:      40000,
     pathRewrite: (path) => targetPrefix + (path === '/' ? '' : path),
     on: {
       error: (err, req, res) => {

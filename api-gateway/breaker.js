@@ -2,9 +2,9 @@ const CircuitBreaker = require('opossum');
 const axios          = require('axios');
 
 const options = {
-  timeout:                  3000,  // ms before a single call is considered failed
+  timeout:                  35000, // allow time for Render cold-start (~30s)
   errorThresholdPercentage: 50,    // open circuit when >50% of calls fail
-  resetTimeout:             10000, // attempt recovery after 10 s
+  resetTimeout:             30000, // attempt recovery after 30 s
 };
 
 // One breaker instance per downstream service URL

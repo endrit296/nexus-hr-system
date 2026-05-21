@@ -9,6 +9,10 @@ const client = axios.create({
 
 let refreshPromise = null;
 
+const RETRY_STATUSES = new Set([502, 503, 504]);
+const MAX_RETRIES = 3;
+const retryDelay = (attempt) => new Promise((res) => setTimeout(res, attempt * 3000));
+
 const isAuthExcluded = (url = '') => PUBLIC_AUTH_ENDPOINTS.some((path) => url.includes(path));
 
 const isTokenExpired = (token) => {
@@ -52,7 +56,11 @@ const refreshAccessToken = async () => {
       return data.token;
     })
     .catch((error) => {
-      forceLogout();
+      // Only force logout on actual auth rejection, not server unavailability.
+      const status = error.response?.status;
+      if (!status || status === 401 || status === 403) {
+        forceLogout();
+      }
       throw error;
     })
     .finally(() => {
@@ -79,13 +87,23 @@ client.interceptors.request.use(async (config) => {
 });
 
 // On unexpected 401s: refresh once, retry once, then force logout.
+// On 502/503/504 (cold start / gateway unavailable): retry up to 3 times with backoff.
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    const status = error.response?.status;
+
+    if (RETRY_STATUSES.has(status) && original) {
+      original._retryCount = (original._retryCount || 0) + 1;
+      if (original._retryCount <= MAX_RETRIES) {
+        await retryDelay(original._retryCount);
+        return client(original);
+      }
+    }
 
     if (
-      error.response?.status === 401 &&
+      status === 401 &&
       original &&
       !original._retried &&
       !isAuthExcluded(original.url)
