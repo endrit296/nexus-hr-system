@@ -75,7 +75,7 @@ A production-grade Human Resources management platform built on a **microservice
 **Key design decisions:**
 
 - The frontend only ever communicates with **Nginx → API Gateway** — no direct service-to-service calls from the browser
-- The gateway validates JWTs and forwards `X-User-Id`, `X-User-Role`, `X-Username`, and `X-User-Email` headers to downstream services so each service never touches the JWT secret
+- The gateway validates JWTs and forwards `X-User-Id`, `X-User-Role`, `X-Username`, and `X-User-Email` headers to downstream services so each service never touches the JWTs secret
 - Versioned routes at `/api/v1/*` with legacy `/api/*` aliases for backwards compatibility
 - **Cache-aside** pattern via Redis (30 s TTL) on all list endpoints in the employee service with explicit invalidation on mutations
 - **HATEOAS** `_links` on every resource response for discoverability
