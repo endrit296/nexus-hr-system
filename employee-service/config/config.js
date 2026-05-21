@@ -1,8 +1,9 @@
 require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
+const useSsl = isProduction && process.env.DB_SSL === 'true';
 
-const dialectOptions = isProduction ? {
+const dialectOptions = useSsl ? {
   ssl: {
     require: true,
     rejectUnauthorized: false

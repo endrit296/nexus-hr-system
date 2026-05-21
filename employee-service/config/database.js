@@ -11,8 +11,9 @@ const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 5432;
 
 const isProduction = process.env.NODE_ENV === 'production';
+const useSsl = isProduction && process.env.DB_SSL === 'true';
 
-const dialectOptions = isProduction ? {
+const dialectOptions = useSsl ? {
   ssl: {
     require: true,
     rejectUnauthorized: false
