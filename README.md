@@ -191,7 +191,7 @@ A production-grade Human Resources management platform built on a **microservice
 | dotenv | ^16.0.3 | Environment variable loading |
 | jest | ^29.7.0 | _(dev)_ Test runner |
 | supertest | ^6.3.4 | _(dev)_ HTTP integration testing |
-| nodemon | ^3.0.2 | _(dev)_ Live-reload |
+| nodemon | ^3.0.2 | _(dev)_ Live-reload | 1 
 
 ### Infrastructure
 
