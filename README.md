@@ -206,7 +206,7 @@ A production-grade Human Resources management platform built on a **microservice
 | Prometheus | prom/prometheus | Metrics collection |
 | Grafana | grafana/grafana | Metrics visualisation (admin / nexus123) |
 | Loki | grafana/loki | Log aggregation |
-| Promtail | grafana/promtail | Log shipping from Docker containers |
+| Promtail | grafana/promtail | Log shipping from Docker containers | 1 
 
 ---
 
