@@ -56,11 +56,9 @@ const refreshAccessToken = async () => {
       return data.token;
     })
     .catch((error) => {
-      // Only force logout on actual auth rejection, not server unavailability.
-      const status = error.response?.status;
-      if (!status || status === 401 || status === 403) {
-        forceLogout();
-      }
+      // Any refresh failure (401, 429, network error, cold-start 5xx) is
+      // treated as a terminal session loss — clear state and return to login.
+      forceLogout();
       throw error;
     })
     .finally(() => {

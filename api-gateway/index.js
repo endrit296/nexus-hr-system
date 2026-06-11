@@ -21,6 +21,9 @@ const app  = express();
 const PORT = getPort();
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Trust the single proxy hop Render places in front of every service so that
+// express-rate-limit keys by the real client IP, not the shared proxy IP.
+app.set('trust proxy', 1);
 app.set('env', NODE_ENV);
 
 // Env
@@ -79,12 +82,23 @@ app.use(requestMiddleware);
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
 // Rate limiting
+// Brute-force protection for credential endpoints.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: 'Too many requests, please try again later.' },
+  message: { error: 'Too many requests, please try again later.' },
+});
+
+// Lenient limiter for session-restore calls; SPAs call refresh on every page
+// load so the brute-force window would be hit immediately under normal use.
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
 });
 
 const generalLimiter = rateLimit({
@@ -92,13 +106,17 @@ const generalLimiter = rateLimit({
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: 'Too many requests, please try again later.' },
+  message: { error: 'Too many requests, please try again later.' },
 });
 
 app.use(generalLimiter);
 app.use(
   ['/api/auth/login', '/api/auth/register', '/api/v1/auth/login', '/api/v1/auth/register'],
   authLimiter
+);
+app.use(
+  ['/api/auth/refresh', '/api/v1/auth/refresh'],
+  refreshLimiter
 );
 
 // Swagger docs (public - before verifyToken)

@@ -115,6 +115,7 @@ function DashboardHome({ onNavigate, user }) {
   const [myRecentRequests, setMyRecentRequests] = useState([]);
   const [carryoverBanner,  setCarryoverBanner]  = useState(null); // { typeName, days }
   const [loading,        setLoading]        = useState(true);
+  const [fetchError,     setFetchError]     = useState(false);
 
   const role = user?.role;
 
@@ -143,8 +144,10 @@ function DashboardHome({ onNavigate, user }) {
       setTotalEmployees(empRes.data.pagination?.total ?? (empRes.data.employees?.length || 0));
       setUpcomingLeave(weekLeaveRes.data?.requests || []);
       if (leaveRes) setPendingLeave(leaveRes.data?.requests || []);
-    }).catch(() => showError('Failed to load dashboard data'))
-      .finally(() => setLoading(false));
+    }).catch(() => {
+      setFetchError(true);
+      showError('Failed to load dashboard data');
+    }).finally(() => setLoading(false));
 
     // Carryover banner — fetch own balance
     client.get('/api/employees/me')
@@ -159,6 +162,21 @@ function DashboardHome({ onNavigate, user }) {
   }, [role]);
 
   if (loading) return <Spinner />;
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <p className="text-slate-500 text-sm">Failed to load dashboard data.</p>
+        <button
+          type="button"
+          className="text-sm text-brand-600 font-semibold hover:underline"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const total     = totalEmployees;
   const active    = employees.filter((e) => e.status === 'active').length;
